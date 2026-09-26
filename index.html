@@ -941,14 +941,23 @@
       </div>
     </div>
 
-    <!-- 支払元 (夫 / 妻) -->
+    <!-- 支払者 (夫 / 妻) -->
     <div class="form-group">
-      <label class="form-label">誰が支払いましたか？（支払元）</label>
+      <label class="form-label">誰が支払いましたか？（支払者）</label>
       <div class="segmented-control husband-active" id="payer-toggle">
-        <button type="button" class="active" onclick="setPayer('夫（楽天ペイ）')">👨 夫 (楽天P)</button>
-        <button type="button" onclick="setPayer('妻（PayPay）')">👩 妻 (PayPay)</button>
-        <button type="button" onclick="setPayer('その他現金等')">その他</button>
+        <button type="button" class="active" onclick="setPayer('夫')">👨 夫</button>
+        <button type="button" onclick="setPayer('妻')">👩 妻</button>
       </div>
+    </div>
+
+    <!-- 支払手段 (直近5履歴チップス + 自由記載) -->
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label class="form-label" style="margin: 0;">支払手段（直近履歴 / 自由記載）</label>
+        <span style="font-size: 0.72rem; color: var(--muted);">タップで即選択</span>
+      </div>
+      <div class="chips-group" id="payment-method-chips"></div>
+      <input type="text" id="custom-payment-method" class="input-text" placeholder="自由入力 (例: 三井住友カード, Suica)" style="font-size: 0.85rem; padding: 8px 10px; margin-top: 6px;" oninput="onCustomPaymentInput(this.value)">
     </div>
 
     <!-- 全体負担ルール (折半 / 100%) -->
@@ -1107,14 +1116,22 @@
       </div>
     </div>
 
-    <!-- 支払元 & 負担ルール -->
+    <!-- 支払者 & 支払手段 -->
     <div class="form-group">
-      <label class="form-label">支払元</label>
+      <label class="form-label">支払者</label>
       <div class="segmented-control husband-active" id="manual-payer-toggle">
-        <button type="button" class="active" onclick="setManualPayer('夫（楽天ペイ）')">👨 夫</button>
-        <button type="button" onclick="setManualPayer('妻（PayPay）')">👩 妻</button>
-        <button type="button" onclick="setManualPayer('その他現金等')">現金・他</button>
+        <button type="button" class="active" onclick="setManualPayer('夫')">👨 夫</button>
+        <button type="button" onclick="setManualPayer('妻')">👩 妻</button>
       </div>
+    </div>
+
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label class="form-label" style="margin: 0;">支払手段（直近履歴 / 自由記載）</label>
+        <span style="font-size: 0.72rem; color: var(--muted);">タップで即選択</span>
+      </div>
+      <div class="chips-group" id="manual-payment-method-chips"></div>
+      <input type="text" id="manual-custom-payment-method" class="input-text" placeholder="自由入力 (例: 現金, PayPay)" style="font-size: 0.85rem; padding: 8px 10px; margin-top: 6px;" oninput="onManualCustomPaymentInput(this.value)">
     </div>
 
     <div class="form-group">
@@ -1140,17 +1157,95 @@
 
 <script>
   let currentAnalysis = null;
-  let selectedPayer = '夫（楽天ペイ）';
+  let selectedPayer = '夫';
+  let selectedPaymentMethod = '楽天ペイ';
   let selectedBaseSharing = '折半 (5:5)';
   let selectedExpenseType = '日常費';
 
-  let manualPayer = '夫（楽天ペイ）';
+  let manualPayer = '夫';
+  let manualPaymentMethod = '楽天ペイ';
   let manualSharing = '折半 (5:5)';
   let manualCategory = '交通費';
+
+  const DEFAULT_PAYMENT_METHODS = ["楽天ペイ", "PayPay", "クレジットカード", "現金", "電子マネー"];
+  let paymentMethodHistory = [];
+
+  function loadPaymentMethodHistory() {
+    try {
+      const saved = localStorage.getItem('kakeibo_payment_methods');
+      if (saved) {
+        paymentMethodHistory = JSON.parse(saved);
+      }
+    } catch (_) {}
+    if (!Array.isArray(paymentMethodHistory) || paymentMethodHistory.length === 0) {
+      paymentMethodHistory = [...DEFAULT_PAYMENT_METHODS];
+    }
+  }
+
+  function savePaymentMethodHistory(newMethod) {
+    if (!newMethod || typeof newMethod !== 'string') return;
+    const trimmed = newMethod.trim();
+    if (!trimmed) return;
+    paymentMethodHistory = paymentMethodHistory.filter(m => m !== trimmed);
+    paymentMethodHistory.unshift(trimmed);
+    if (paymentMethodHistory.length > 5) paymentMethodHistory = paymentMethodHistory.slice(0, 5);
+    try {
+      localStorage.setItem('kakeibo_payment_methods', JSON.stringify(paymentMethodHistory));
+    } catch (_) {}
+    renderPaymentMethodChips();
+  }
+
+  function renderPaymentMethodChips() {
+    const list = [
+      { id: 'payment-method-chips', cur: selectedPaymentMethod, handler: selectPaymentMethod },
+      { id: 'manual-payment-method-chips', cur: manualPaymentMethod, handler: selectManualPaymentMethod }
+    ];
+    list.forEach(cfg => {
+      const container = document.getElementById(cfg.id);
+      if (!container) return;
+      container.innerHTML = '';
+      paymentMethodHistory.forEach(m => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chip-btn' + (m === cfg.cur ? ' active' : '');
+        btn.textContent = m;
+        btn.onclick = () => cfg.handler(m);
+        container.appendChild(btn);
+      });
+    });
+  }
+
+  function selectPaymentMethod(m) {
+    selectedPaymentMethod = m;
+    const inp = document.getElementById('custom-payment-method');
+    if (inp) inp.value = m;
+    renderPaymentMethodChips();
+  }
+
+  function onCustomPaymentInput(val) {
+    selectedPaymentMethod = val.trim() || '決済';
+    renderPaymentMethodChips();
+  }
+
+  function selectManualPaymentMethod(m) {
+    manualPaymentMethod = m;
+    const inp = document.getElementById('manual-custom-payment-method');
+    if (inp) inp.value = m;
+    renderPaymentMethodChips();
+  }
+
+  function onManualCustomPaymentInput(val) {
+    manualPaymentMethod = val.trim() || '決済';
+    renderPaymentMethodChips();
+  }
 
   const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycby9LG2-92_5zMXsYF4stL0PFVZNCj2TqcTCfYFhMaoJ5dUbDPYqy6HnwDN9a4A5Lsy6/exec";
 
   window.addEventListener('DOMContentLoaded', () => {
+    loadPaymentMethodHistory();
+    renderPaymentMethodChips();
+    selectPaymentMethod(paymentMethodHistory[0] || '楽天ペイ');
+    selectManualPaymentMethod(paymentMethodHistory[0] || '楽天ペイ');
     refreshSummary();
   });
 
@@ -1197,10 +1292,11 @@
       items.forEach(it => {
         const div = document.createElement('div');
         div.className = 'recent-item';
+        const methodStr = it.paymentMethod ? ` • ${escapeHtml(it.paymentMethod)}` : '';
         div.innerHTML = `
           <div>
             <div class="title">${escapeHtml(it.item)}</div>
-            <div class="meta">${escapeHtml(it.date)} • ${escapeHtml(it.store)} • ${escapeHtml(it.payer)}</div>
+            <div class="meta">${escapeHtml(it.date)} • ${escapeHtml(it.store)} • ${escapeHtml(it.payer)}${methodStr}</div>
           </div>
           <div class="amt">${formatYen(it.amount)}</div>
         `;
@@ -1639,7 +1735,7 @@
     const ctrl = document.getElementById('payer-toggle');
     ctrl.className = 'segmented-control ' + (p.startsWith('夫') ? 'husband-active' : (p.startsWith('妻') ? 'wife-active' : ''));
     ctrl.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.textContent.trim().startsWith(p.slice(0, 1)));
+      btn.classList.toggle('active', btn.textContent.trim().includes(p));
     });
   }
 
@@ -1680,11 +1776,14 @@
       return;
     }
 
+    savePaymentMethodHistory(selectedPaymentMethod);
+
     const payload = {
       items: currentAnalysis.items,
       date: document.getElementById('prev-date').value,
       storeName: document.getElementById('prev-store').value,
       payer: selectedPayer,
+      paymentMethod: selectedPaymentMethod,
       expenseType: selectedExpenseType,
       eventTag: document.getElementById('prev-event-tag').value,
       sharingRule: selectedBaseSharing
@@ -1783,7 +1882,7 @@
     const ctrl = document.getElementById('manual-payer-toggle');
     ctrl.className = 'segmented-control ' + (p.startsWith('夫') ? 'husband-active' : (p.startsWith('妻') ? 'wife-active' : ''));
     ctrl.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.textContent.trim().startsWith(p.slice(0, 1)));
+      btn.classList.toggle('active', btn.textContent.trim().includes(p));
     });
   }
 
@@ -1801,6 +1900,8 @@
       return;
     }
 
+    savePaymentMethodHistory(manualPaymentMethod);
+
     const store = document.getElementById('manual-store').value || 'レシートなし支出';
     const item = document.getElementById('manual-item').value || '日常出費';
 
@@ -1808,6 +1909,7 @@
       date: UtilitiesDateToday(),
       storeName: store,
       payer: manualPayer,
+      paymentMethod: manualPaymentMethod,
       expenseType: '日常費',
       eventTag: '',
       sharingRule: manualSharing,
