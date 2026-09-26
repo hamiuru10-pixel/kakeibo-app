@@ -1306,50 +1306,65 @@
   }
 
   // ① レシート撮影 (API)
+  let currentRawImage = null;
+
   function handleFileSelected(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     document.getElementById('action-panel').style.display = 'none';
     document.getElementById('preview-section').style.display = 'none';
-    document.getElementById('loading-overlay').style.display = 'block';
+    document.getElementById('loading-overlay').style.display = 'flex';
+    const subtext = document.getElementById('loading-subtext');
+    if (subtext) subtext.textContent = '画像を最適化して解析準備中...';
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const targetWidth = 1080;
-        let w = img.width;
-        let h = img.height;
-
-        if (w > targetWidth) {
-          h = Math.round((h * targetWidth) / w);
-          w = targetWidth;
-        }
-
-        const maxSafeHeight = 4000;
-        if (h > maxSafeHeight) {
-          w = Math.round((w * maxSafeHeight) / h);
-          h = maxSafeHeight;
-        }
-
-        const canvas = document.getElementById('compress-canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const base64Data = compressedDataUrl.split(',')[1];
-        callAnalyzeReceipt(base64Data);
+        currentRawImage = img;
+        // 最適化圧縮: 幅 850px, 品質 0.65 (約150KB〜250KB・Safari高速安定)
+        const base64Data = compressImage_(img, 850, 2600, 0.65);
+        callAnalyzeReceipt(base64Data, 1);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
 
-  function callAnalyzeReceipt(base64) {
+  function compressImage_(img, targetWidth, maxHeight, quality) {
+    let w = img.width;
+    let h = img.height;
+
+    if (w > targetWidth) {
+      h = Math.round((h * targetWidth) / w);
+      w = targetWidth;
+    }
+
+    if (h > maxHeight) {
+      w = Math.round((w * maxHeight) / h);
+      h = maxHeight;
+    }
+
+    const canvas = document.getElementById('compress-canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+    return compressedDataUrl.split(',')[1];
+  }
+
+  function callAnalyzeReceipt(base64, attempt) {
     document.getElementById('loading-overlay').style.display = 'flex';
+    const subtext = document.getElementById('loading-subtext');
+    if (subtext) {
+      subtext.textContent = attempt > 1 
+        ? '通信負荷を抑えて再試行中...' 
+        : '品目・割引・外税端数を読み取っています（数秒）';
+    }
+
     fetch(GAS_ENDPOINT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1359,19 +1374,35 @@
         mimeType: 'image/jpeg'
       })
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
     .then(res => {
       handleAnalysisSuccess(res);
     })
     .catch(err => {
-      console.warn('fetch analyze fallback to google.script.run:', err);
+      console.warn(`analyze attempt ${attempt} failed:`, err);
+      // 1回目の失敗かつ元画像がある場合、超軽量モード(幅720, 品質0.50)で自動1回リトライ
+      if (attempt === 1 && currentRawImage) {
+        console.log('Retrying with ultra-light compression...');
+        const lightBase64 = compressImage_(currentRawImage, 720, 2200, 0.50);
+        setTimeout(() => {
+          callAnalyzeReceipt(lightBase64, 2);
+        }, 500);
+        return;
+      }
+
       if (typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run
           .withSuccessHandler(handleAnalysisSuccess)
           .withFailureHandler(handleAnalysisError)
           .analyzeReceipt(base64, 'image/jpeg');
       } else {
-        handleAnalysisError('レシート解析通信エラー: ' + err);
+        const msg = String(err).includes('Load failed')
+          ? 'モバイル通信またはサーバー応答が混雑しているため接続が切断されました。電波の良い場所でもう一度お試しください。'
+          : err;
+        handleAnalysisError(msg);
       }
     });
   }
