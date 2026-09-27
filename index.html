@@ -1143,7 +1143,7 @@
       </div>
     </div>
 
-    <button type="button" class="btn-block btn-primary" onclick="submitManualExpense()">
+    <button type="button" id="manual-submit-btn" class="btn-block btn-primary" onclick="submitManualExpense()">
       ✨ 手動入力で登録する
     </button>
   </div>
@@ -1801,10 +1801,21 @@
   }
 
   // 登録処理 (isContinuous: 連続撮影フラグ)
+  let isSubmitting = false; // 二重送信・連打完全防止フラグ
+
   function submitExpenses(isContinuous) {
+    if (isSubmitting) return;
+
     if (!currentAnalysis || currentAnalysis.items.length === 0) {
       alert('登録する品目がありません。');
       return;
+    }
+
+    const submitBtn = document.getElementById('submit-btn');
+    isSubmitting = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ 登録処理中...';
     }
 
     savePaymentMethodHistory(selectedPaymentMethod);
@@ -1820,15 +1831,18 @@
       sharingRule: selectedBaseSharing
     };
 
-    const submitBtn = document.getElementById('submit-btn');
-    submitBtn.disabled = true;
-    submitBtn.textContent = '登録中...';
-
     const onComplete = (res) => {
-      submitBtn.disabled = false;
-      submitBtn.textContent = '✨ 登録して完了';
+      isSubmitting = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '✨ 登録して完了';
+      }
       if (res && res.ok) {
-        showToast(`🎉 ${res.count}件を登録しました！`);
+        if (res.warning) {
+          alert('⚠️ ' + res.warning);
+        } else {
+          showToast(`🎉 ${res.count}件を登録しました！`);
+        }
         cancelPreview();
         if (res.summary) renderSummary(res.summary);
 
@@ -1925,10 +1939,19 @@
   }
 
   function submitManualExpense() {
+    if (isSubmitting) return;
+
     const amount = Number(document.getElementById('manual-amount').value);
     if (!amount || amount <= 0) {
       alert('有効な金額を入力してください。');
       return;
+    }
+
+    const btn = document.getElementById('manual-submit-btn');
+    isSubmitting = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 登録処理中...';
     }
 
     savePaymentMethodHistory(manualPaymentMethod);
@@ -1967,10 +1990,19 @@
     })
     .then(r => r.json())
     .then(res => {
+      isSubmitting = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '✨ 手動入力で登録する';
+      }
       if (res && res.ok) {
         document.getElementById('manual-modal').style.display = 'none';
         document.getElementById('manual-amount').value = '';
-        showToast(`🎉 手動支出 ¥${amount.toLocaleString()} を登録しました！`);
+        if (res.warning) {
+          alert('⚠️ ' + res.warning);
+        } else {
+          showToast(`🎉 手動支出 ¥${amount.toLocaleString()} を登録しました！`);
+        }
         if (res.summary) renderSummary(res.summary);
         else refreshSummary();
       } else {
@@ -1982,14 +2014,31 @@
       if (typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run
           .withSuccessHandler((res) => {
+            isSubmitting = false;
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = '✨ 手動入力で登録する';
+            }
             document.getElementById('manual-modal').style.display = 'none';
             document.getElementById('manual-amount').value = '';
             showToast(`🎉 手動支出 ¥${amount.toLocaleString()} を登録しました！`);
             refreshSummary();
           })
-          .withFailureHandler((e) => alert('登録エラー: ' + e))
+          .withFailureHandler((e) => {
+            isSubmitting = false;
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = '✨ 手動入力で登録する';
+            }
+            alert('登録エラー: ' + e);
+          })
           .registerExpenses(payload);
       } else {
+        isSubmitting = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '✨ 手動入力で登録する';
+        }
         alert('手動登録通信エラー: ' + err);
       }
     });
