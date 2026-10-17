@@ -757,7 +757,7 @@
       to { transform: translateY(0); }
     }
 
-    /* 直近の明細リスト */
+    /* 直近の明細リスト & 個別精算アクション */
     .recent-section {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -780,21 +780,156 @@
       padding: 10px 0;
       border-bottom: 1px solid var(--line);
       font-size: 0.85rem;
+      gap: 8px;
     }
     .recent-item:last-child {
       border-bottom: none;
     }
+    .recent-item.is-settled {
+      opacity: 0.62;
+    }
     .recent-item .title {
       font-weight: 600;
       margin-bottom: 2px;
+      word-break: break-word;
     }
     .recent-item .meta {
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--muted);
+      line-height: 1.35;
+    }
+    .recent-item-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      flex-shrink: 0;
     }
     .recent-item .amt {
       font-weight: 700;
       font-size: 0.95rem;
+    }
+    .item-mini-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-toggle-pill {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      border: 1px solid var(--line-strong);
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .status-toggle-pill.unsettled {
+      background: #FEF3C7;
+      border-color: #F59E0B;
+      color: #92400E;
+    }
+    .status-toggle-pill.settled {
+      background: #E2E8F0;
+      border-color: #CBD5E1;
+      color: #475569;
+    }
+    .status-toggle-pill:active {
+      transform: scale(0.94);
+    }
+    .edit-mini-btn {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--ink-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .edit-mini-btn:active {
+      background: var(--surface-subtle);
+      transform: scale(0.94);
+    }
+
+    /* 精算カード下部サブアクションバー */
+    .settlement-sub-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(217, 119, 6, 0.35);
+    }
+    .sub-settle-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .sub-settle-btn.primary-sub {
+      background: #FFFFFF;
+      border: 1.5px solid #D97706;
+      color: #92400E;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .sub-settle-btn.sheet-link {
+      flex: 0 0 auto;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(217, 119, 6, 0.4);
+      color: #78350F;
+      padding: 8px 12px;
+    }
+    .sub-settle-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* 未精算一覧カード */
+    .unsettled-list-container {
+      max-height: 58vh;
+      overflow-y: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      padding: 6px 10px;
+      margin-bottom: 12px;
+    }
+    .unsettled-row-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .btn-settle-one {
+      background: var(--accent);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-settle-one:active {
+      transform: scale(0.95);
+      background: var(--accent-hover);
     }
 
     /* トースト */
@@ -841,9 +976,17 @@
       <div class="label">
         <span>⚖️</span> 現在の精算案内
       </div>
-      <button class="settle-action-btn" onclick="confirmExecutionSettlement()">💸 精算を確定・リセット</button>
+      <button class="settle-action-btn" onclick="confirmExecutionSettlement()">💸 全体精算・リセット</button>
     </div>
     <div class="message" id="settlement-msg">読み込み中...</div>
+    <div class="settlement-sub-actions">
+      <button type="button" class="sub-settle-btn primary-sub" onclick="openUnsettledModal()">
+        📋 未精算明細・個別精算 (<span id="unsettled-count-badge">0</span>件)
+      </button>
+      <a id="sheet-direct-link" href="https://docs.google.com/spreadsheets/d/1vp9tEQQWmbfhnQgFLUwu6PhDxAlHamFq35njwv1uFPE/edit" target="_blank" rel="noopener" class="sub-settle-btn sheet-link" title="スプレッドシートを開く">
+        📊 スプシ
+      </a>
+    </div>
   </section>
 
   <!-- KPIグリッド -->
@@ -1023,7 +1166,7 @@
   <section class="recent-section">
     <div class="recent-header">
       <span>🕒 最近の登録明細</span>
-      <span style="font-size: 0.75rem; color: var(--muted);">直近5件</span>
+      <span style="font-size: 0.73rem; color: var(--muted);">直近10件 • タップで個別精算・修正</span>
     </div>
     <div id="recent-list">
       <div style="text-align: center; color: var(--muted); padding: 12px 0; font-size: 0.85rem;">
@@ -1145,6 +1288,120 @@
 
     <button type="button" id="manual-submit-btn" class="btn-block btn-primary" onclick="submitManualExpense()">
       ✨ 手動入力で登録する
+    </button>
+  </div>
+</div>
+
+<!-- ③ 未精算明細一覧 & 個別精算モーダル -->
+<div class="modal-backdrop" id="unsettled-modal" onclick="closeUnsettledModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="preview-header">
+      <div class="preview-title">
+        <span>📋</span> 未精算明細の確認・個別精算
+      </div>
+      <button type="button" class="delete-item-btn" onclick="closeUnsettledModal()">✕</button>
+    </div>
+
+    <div style="font-size: 0.78rem; color: var(--ink-secondary); margin-bottom: 10px; line-height: 1.4;">
+      個別に精算・返金した項目は <strong>「✅ 個別精算」</strong> を押すと即座に精算済になり、送金差額から除外されます。内容修正は <strong>「✏️」</strong> を押してください。
+    </div>
+
+    <!-- 絞り込みフィルタ -->
+    <div style="display: flex; gap: 6px; margin-bottom: 10px; align-items: center;">
+      <div class="chips-group" id="unsettled-filter-chips" style="margin: 0; flex-shrink: 0;">
+        <button type="button" class="chip-btn active" onclick="setUnsettledFilter('ALL')">すべて</button>
+        <button type="button" class="chip-btn" onclick="setUnsettledFilter('夫')">👨 夫立替</button>
+        <button type="button" class="chip-btn" onclick="setUnsettledFilter('妻')">👩 妻立替</button>
+      </div>
+      <input type="text" id="unsettled-search-input" class="input-text" placeholder="店名・品名で検索..." style="padding: 6px 10px; font-size: 0.8rem;" oninput="renderUnsettledModalList()">
+    </div>
+
+    <div class="unsettled-list-container" id="unsettled-modal-list">
+      <!-- 動的生成 -->
+    </div>
+
+    <button type="button" class="btn-block btn-secondary" onclick="closeUnsettledModal()">
+      閉じる
+    </button>
+  </div>
+</div>
+
+<!-- ④ 個別明細の修正・削除モーダル -->
+<div class="modal-backdrop" id="edit-row-modal" onclick="closeEditRowModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="preview-header">
+      <div class="preview-title">
+        <span>✏️</span> 明細の修正・個別精算
+      </div>
+      <button type="button" class="delete-item-btn" onclick="closeEditRowModal()">✕</button>
+    </div>
+
+    <!-- 精算ステータストグル -->
+    <div class="form-group">
+      <label class="form-label">精算ステータス</label>
+      <div class="segmented-control" id="edit-settled-toggle">
+        <button type="button" class="active" onclick="setEditSettled(false)">⏳ 未精算</button>
+        <button type="button" onclick="setEditSettled(true)">✅ 精算済</button>
+      </div>
+    </div>
+
+    <!-- 金額 & 日付 -->
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-bottom: 14px;">
+      <div>
+        <label class="form-label">実質金額（税込）</label>
+        <input type="number" id="edit-amount" class="input-text" inputmode="numeric" style="font-size: 1.15rem; font-weight: 700;">
+      </div>
+      <div>
+        <label class="form-label">日付 (YYYY/MM/DD)</label>
+        <input type="text" id="edit-date" class="input-text">
+      </div>
+    </div>
+
+    <!-- 店舗名 & 品目名 -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+      <div>
+        <label class="form-label">店舗名</label>
+        <input type="text" id="edit-store" class="input-text">
+      </div>
+      <div>
+        <label class="form-label">品目・内容</label>
+        <input type="text" id="edit-item" class="input-text">
+      </div>
+    </div>
+
+    <!-- 支払者 & 支払手段 -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+      <div>
+        <label class="form-label">支払者</label>
+        <div class="segmented-control husband-active" id="edit-payer-toggle">
+          <button type="button" class="active" onclick="setEditPayer('夫')">👨 夫</button>
+          <button type="button" onclick="setEditPayer('妻')">👩 妻</button>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">支払手段</label>
+        <input type="text" id="edit-method" class="input-text" placeholder="例: 楽天ペイ, PayPay">
+      </div>
+    </div>
+
+    <!-- 負担ルール -->
+    <div class="form-group">
+      <label class="form-label">負担ルール</label>
+      <div class="segmented-control" id="edit-sharing-toggle">
+        <button type="button" class="active" onclick="setEditSharing('折半 (5:5)')">🤝 折半</button>
+        <button type="button" onclick="setEditSharing('夫 100%')">👨 夫100%</button>
+        <button type="button" onclick="setEditSharing('妻 100%')">👩 妻100%</button>
+      </div>
+    </div>
+
+    <button type="button" id="edit-save-btn" class="btn-block btn-primary" onclick="submitEditExpenseRow()">
+      💾 変更を保存して反映
+    </button>
+    <button type="button" id="edit-delete-btn" class="btn-block" style="background: var(--danger-soft); color: var(--danger); border: 1px solid #FCA5A5; margin-bottom: 8px;" onclick="confirmDeleteExpenseRow()">
+      🗑️ この明細を削除する
+    </button>
+    <button type="button" class="btn-block btn-secondary" onclick="closeEditRowModal()">
+      キャンセル
     </button>
   </div>
 </div>
@@ -1271,6 +1528,11 @@
     });
   }
 
+  let cachedRecentItems = [];
+  let cachedUnsettledItems = [];
+  let unsettledPayerFilter = 'ALL';
+  let currentEditingRow = null;
+
   function renderSummary(res) {
     if (!res || !res.ok) {
       document.getElementById('settlement-msg').textContent = '取得できませんでした';
@@ -1283,25 +1545,53 @@
     document.getElementById('stat-husband').textContent = formatYen(res.husbandPaid);
     document.getElementById('stat-wife').textContent = formatYen(res.wifePaid);
 
+    cachedRecentItems = res.recentItems || [];
+    cachedUnsettledItems = res.unsettledItems || [];
+
+    const countBadge = document.getElementById('unsettled-count-badge');
+    if (countBadge) {
+      const cnt = (res.unsettledCount !== undefined) ? res.unsettledCount : cachedUnsettledItems.length;
+      countBadge.textContent = cnt;
+    }
+
+    if (res.spreadsheetUrl) {
+      const linkEl = document.getElementById('sheet-direct-link');
+      if (linkEl) linkEl.href = res.spreadsheetUrl;
+    }
+
     const rContainer = document.getElementById('recent-list');
     rContainer.innerHTML = '';
-    const items = res.recentItems || [];
-    if (items.length === 0) {
+    if (cachedRecentItems.length === 0) {
       rContainer.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 12px 0;">まだ明細がありません</div>';
     } else {
-      items.forEach(it => {
+      cachedRecentItems.forEach((it, idx) => {
         const div = document.createElement('div');
-        div.className = 'recent-item';
+        div.className = 'recent-item' + (it.settled ? ' is-settled' : '');
         const methodStr = it.paymentMethod ? ` • ${escapeHtml(it.paymentMethod)}` : '';
+        const ruleStr = it.sharingRule ? ` • ${escapeHtml(it.sharingRule)}` : '';
+        const statusClass = it.settled ? 'settled' : 'unsettled';
+        const statusText = it.settled ? '✅ 精算済' : '⏳ 未精算';
+
         div.innerHTML = `
-          <div>
+          <div style="flex: 1; min-width: 0;">
             <div class="title">${escapeHtml(it.item)}</div>
-            <div class="meta">${escapeHtml(it.date)} • ${escapeHtml(it.store)} • ${escapeHtml(it.payer)}${methodStr}</div>
+            <div class="meta">${escapeHtml(it.date)} • ${escapeHtml(it.store)}<br>${escapeHtml(it.payer)}${methodStr}${ruleStr}</div>
           </div>
-          <div class="amt">${formatYen(it.amount)}</div>
+          <div class="recent-item-right">
+            <div class="amt">${formatYen(it.amount)}</div>
+            <div class="item-mini-actions">
+              <button type="button" class="status-toggle-pill ${statusClass}" onclick="quickToggleSettledFromRecent(${idx})">${statusText}</button>
+              <button type="button" class="edit-mini-btn" onclick="openEditRowModalFromRecent(${idx})">✏️ 修正</button>
+            </div>
+          </div>
         `;
         rContainer.appendChild(div);
       });
+    }
+
+    const uModal = document.getElementById('unsettled-modal');
+    if (uModal && uModal.style.display === 'flex') {
+      renderUnsettledModalList();
     }
   }
 
@@ -2093,6 +2383,329 @@
       } else {
         alert('精算確定通信エラー: ' + err);
       }
+    });
+  }
+
+  // =========================================================================
+  // ③ 未精算明細一覧 & 個別精算モーダル制御
+  // =========================================================================
+  function openUnsettledModal() {
+    document.getElementById('unsettled-modal').style.display = 'flex';
+    renderUnsettledModalList();
+  }
+
+  function closeUnsettledModal(e) {
+    if (e && e.target !== document.getElementById('unsettled-modal')) return;
+    document.getElementById('unsettled-modal').style.display = 'none';
+  }
+
+  function setUnsettledFilter(payer) {
+    unsettledPayerFilter = payer;
+    const container = document.getElementById('unsettled-filter-chips');
+    if (container) {
+      const btns = container.querySelectorAll('button');
+      btns[0].className = 'chip-btn' + (payer === 'ALL' ? ' active' : '');
+      btns[1].className = 'chip-btn' + (payer === '夫' ? ' active' : '');
+      btns[2].className = 'chip-btn' + (payer === '妻' ? ' active' : '');
+    }
+    renderUnsettledModalList();
+  }
+
+  function renderUnsettledModalList() {
+    const listEl = document.getElementById('unsettled-modal-list');
+    if (!listEl) return;
+
+    const query = (document.getElementById('unsettled-search-input')?.value || '').trim().toLowerCase();
+    const filtered = [];
+
+    cachedUnsettledItems.forEach((it, origIdx) => {
+      if (unsettledPayerFilter !== 'ALL' && !String(it.payer || '').startsWith(unsettledPayerFilter)) {
+        return;
+      }
+      if (query) {
+        const hay = `${it.date} ${it.store} ${it.item} ${it.paymentMethod}`.toLowerCase();
+        if (!hay.includes(query)) return;
+      }
+      filtered.push({ item: it, origIdx: origIdx });
+    });
+
+    listEl.innerHTML = '';
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 24px 0; font-size: 0.85rem;">該当する未精算明細はありません ✨</div>';
+      return;
+    }
+
+    filtered.forEach(entry => {
+      const it = entry.item;
+      const origIdx = entry.origIdx;
+      const card = document.createElement('div');
+      card.className = 'unsettled-row-card';
+      const methodStr = it.paymentMethod ? ` (${escapeHtml(it.paymentMethod)})` : '';
+      const ruleStr = it.sharingRule || '折半 (5:5)';
+
+      card.innerHTML = `
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-weight: 700; font-size: 0.86rem; margin-bottom: 2px;">${escapeHtml(it.item)}</div>
+          <div style="font-size: 0.72rem; color: var(--muted); line-height: 1.35;">
+            ${escapeHtml(it.date)} • ${escapeHtml(it.store)}<br>
+            <strong style="color: ${String(it.payer).startsWith('妻') ? 'var(--wife-color)' : 'var(--husband-color)'};">${escapeHtml(it.payer)}払</strong>${methodStr} • ${escapeHtml(ruleStr)}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;">
+          <div style="font-weight: 800; font-size: 0.95rem;">${formatYen(it.amount)}</div>
+          <div style="display: flex; gap: 5px;">
+            <button type="button" class="btn-settle-one" onclick="quickSettleFromModal(${origIdx})">✅ 個別精算</button>
+            <button type="button" class="edit-mini-btn" onclick="openEditRowModalFromUnsettled(${origIdx})">✏️</button>
+          </div>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+  }
+
+  function quickSettleFromModal(unsettledIdx) {
+    const it = cachedUnsettledItems[unsettledIdx];
+    if (!it) return;
+    executeToggleSettled(it, true);
+  }
+
+  function quickToggleSettledFromRecent(recentIdx) {
+    const it = cachedRecentItems[recentIdx];
+    if (!it) return;
+    const nextState = !it.settled;
+    executeToggleSettled(it, nextState);
+  }
+
+  function executeToggleSettled(it, newSettled) {
+    if (isSubmitting) return;
+    if (!it.rowNumber) {
+      alert('GASが最新バージョンに更新されていないため行番号が取得できていません。GASを新バージョンでデプロイしてください。');
+      return;
+    }
+
+    isSubmitting = true;
+    const statusLabel = newSettled ? '精算済' : '未精算';
+    showToast(`⏳ 「${it.item}」を${statusLabel}に更新中...`);
+
+    const reqPayload = {
+      rowNumber: it.rowNumber,
+      expectedItem: it.item,
+      expectedAmount: it.amount,
+      settled: newSettled
+    };
+
+    fetch(GAS_ENDPOINT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'toggleSettled',
+        payload: reqPayload
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      isSubmitting = false;
+      if (res && res.ok) {
+        showToast(`✅ 「${it.item}」を${statusLabel}に反映しました！`);
+        if (res.summary) renderSummary(res.summary);
+        else refreshSummary();
+      } else {
+        alert('更新エラー: ' + (res ? res.error : '不明なエラー'));
+      }
+    })
+    .catch(err => {
+      isSubmitting = false;
+      alert('通信エラー: ' + err);
+    });
+  }
+
+  // =========================================================================
+  // ④ 個別明細の修正・削除モーダル制御
+  // =========================================================================
+  let editSettledState = false;
+  let editPayerState = '夫';
+  let editSharingState = '折半 (5:5)';
+
+  function openEditRowModalFromRecent(idx) {
+    const it = cachedRecentItems[idx];
+    if (it) openEditRowModal(it);
+  }
+
+  function openEditRowModalFromUnsettled(idx) {
+    const it = cachedUnsettledItems[idx];
+    if (it) openEditRowModal(it);
+  }
+
+  function openEditRowModal(it) {
+    if (!it.rowNumber) {
+      alert('GASが最新バージョンに更新されていないため編集できません。GASを新バージョンでデプロイしてください。');
+      return;
+    }
+    currentEditingRow = it;
+
+    document.getElementById('edit-amount').value = it.amount || 0;
+    document.getElementById('edit-date').value = it.date || UtilitiesDateToday();
+    document.getElementById('edit-store').value = it.store || '';
+    document.getElementById('edit-item').value = it.item || '';
+    document.getElementById('edit-method').value = it.paymentMethod || '楽天ペイ';
+
+    setEditSettled(Boolean(it.settled));
+    setEditPayer(String(it.payer || '夫').startsWith('妻') ? '妻' : '夫');
+    setEditSharing(it.sharingRule || '折半 (5:5)');
+
+    document.getElementById('edit-row-modal').style.display = 'flex';
+  }
+
+  function closeEditRowModal(e) {
+    if (e && e.target !== document.getElementById('edit-row-modal')) return;
+    document.getElementById('edit-row-modal').style.display = 'none';
+    currentEditingRow = null;
+  }
+
+  function setEditSettled(isSettled) {
+    editSettledState = Boolean(isSettled);
+    const ctrl = document.getElementById('edit-settled-toggle');
+    if (!ctrl) return;
+    const btns = ctrl.querySelectorAll('button');
+    btns[0].className = !editSettledState ? 'active' : '';
+    btns[1].className = editSettledState ? 'active' : '';
+  }
+
+  function setEditPayer(payer) {
+    editPayerState = payer;
+    const ctrl = document.getElementById('edit-payer-toggle');
+    if (!ctrl) return;
+    ctrl.className = 'segmented-control ' + (payer === '夫' ? 'husband-active' : 'wife-active');
+    const btns = ctrl.querySelectorAll('button');
+    btns[0].className = payer === '夫' ? 'active' : '';
+    btns[1].className = payer === '妻' ? 'active' : '';
+  }
+
+  function setEditSharing(rule) {
+    editSharingState = rule;
+    const ctrl = document.getElementById('edit-sharing-toggle');
+    if (!ctrl) return;
+    const btns = ctrl.querySelectorAll('button');
+    btns[0].className = rule === '折半 (5:5)' ? 'active' : '';
+    btns[1].className = rule === '夫 100%' ? 'active' : '';
+    btns[2].className = rule === '妻 100%' ? 'active' : '';
+  }
+
+  function submitEditExpenseRow() {
+    if (isSubmitting || !currentEditingRow) return;
+
+    const newAmt = Number(document.getElementById('edit-amount').value);
+    if (isNaN(newAmt)) {
+      alert('有効な金額を入力してください。');
+      return;
+    }
+
+    const saveBtn = document.getElementById('edit-save-btn');
+    isSubmitting = true;
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '⏳ 保存中...';
+    }
+
+    const reqPayload = {
+      rowNumber: currentEditingRow.rowNumber,
+      expectedItem: currentEditingRow.item,
+      expectedAmount: currentEditingRow.amount,
+      date: document.getElementById('edit-date').value.trim(),
+      store: document.getElementById('edit-store').value.trim(),
+      item: document.getElementById('edit-item').value.trim(),
+      amount: newAmt,
+      payer: editPayerState,
+      paymentMethod: document.getElementById('edit-method').value.trim(),
+      sharingRule: editSharingState,
+      settled: editSettledState
+    };
+
+    fetch(GAS_ENDPOINT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'updateRow',
+        payload: reqPayload
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      isSubmitting = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 変更を保存して反映';
+      }
+      if (res && res.ok) {
+        document.getElementById('edit-row-modal').style.display = 'none';
+        currentEditingRow = null;
+        showToast('✨ 明細の変更を保存しました！');
+        if (res.summary) renderSummary(res.summary);
+        else refreshSummary();
+      } else {
+        alert('修正エラー: ' + (res ? res.error : '不明なエラー'));
+      }
+    })
+    .catch(err => {
+      isSubmitting = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 変更を保存して反映';
+      }
+      alert('通信エラー: ' + err);
+    });
+  }
+
+  function confirmDeleteExpenseRow() {
+    if (isSubmitting || !currentEditingRow) return;
+    const ok = confirm(`本当にこの明細を削除しますか？\n\n品目: ${currentEditingRow.item}\n金額: ${formatYen(currentEditingRow.amount)}\n日付: ${currentEditingRow.date}`);
+    if (!ok) return;
+
+    const delBtn = document.getElementById('edit-delete-btn');
+    isSubmitting = true;
+    if (delBtn) {
+      delBtn.disabled = true;
+      delBtn.textContent = '⏳ 削除中...';
+    }
+
+    const reqPayload = {
+      rowNumber: currentEditingRow.rowNumber,
+      expectedItem: currentEditingRow.item,
+      expectedAmount: currentEditingRow.amount
+    };
+
+    fetch(GAS_ENDPOINT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'deleteRow',
+        payload: reqPayload
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      isSubmitting = false;
+      if (delBtn) {
+        delBtn.disabled = false;
+        delBtn.textContent = '🗑️ この明細を削除する';
+      }
+      if (res && res.ok) {
+        document.getElementById('edit-row-modal').style.display = 'none';
+        currentEditingRow = null;
+        showToast('🗑️ 明細を削除しました');
+        if (res.summary) renderSummary(res.summary);
+        else refreshSummary();
+      } else {
+        alert('削除エラー: ' + (res ? res.error : '不明なエラー'));
+      }
+    })
+    .catch(err => {
+      isSubmitting = false;
+      if (delBtn) {
+        delBtn.disabled = false;
+        delBtn.textContent = '🗑️ この明細を削除する';
+      }
+      alert('通信エラー: ' + err);
     });
   }
 
