@@ -963,12 +963,36 @@
   <!-- ヘッダー -->
   <header>
     <h1><span>💰</span> 夫婦の立替精算</h1>
-    <button class="icon-btn" onclick="refreshSummary()" title="最新情報に更新">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-      </svg>
-    </button>
+    <div style="display: flex; gap: 8px;">
+      <button class="icon-btn" onclick="openSettingsModal()" title="設定・接続管理">
+        ⚙️
+      </button>
+      <button class="icon-btn" onclick="refreshSummary()" title="最新情報に更新">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+      </button>
+    </div>
   </header>
+
+  <!-- 接続エラー警告バナー（通信遮断・404/403時に自動出現） -->
+  <div id="connection-error-banner" style="display: none; background: #FEF2F2; border: 1.5px solid #FCA5A5; color: #991B1B; padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 14px; font-size: 0.82rem; line-height: 1.45; box-shadow: var(--shadow-sm);">
+    <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+      <span>⚠️ サーバー（スプレッドシート）と通信できません</span>
+      <button type="button" style="background: none; border: none; font-size: 1rem; color: #991B1B; cursor: pointer;" onclick="hideConnectionErrorBanner()">✕</button>
+    </div>
+    <div id="connection-error-msg" style="font-size: 0.78rem; opacity: 0.9; margin-bottom: 8px;">
+      最新データが反映されていません。GASのウェブアプリURLやアクセス権限をご確認ください。
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" onclick="openSettingsModal()" style="background: #DC2626; color: #FFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+        ⚙️ 接続URLを確認・設定
+      </button>
+      <button type="button" onclick="refreshSummary()" style="background: #FFF; color: #991B1B; border: 1px solid #FCA5A5; padding: 5px 10px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+        🔄 再試行
+      </button>
+    </div>
+  </div>
 
   <!-- 精算判定カード -->
   <section class="settlement-card" id="settlement-card">
@@ -976,15 +1000,15 @@
       <div class="label">
         <span>⚖️</span> 現在の精算案内
       </div>
-      <button class="settle-action-btn" onclick="confirmExecutionSettlement()">💸 全体精算・リセット</button>
+      <button class="settle-action-btn" onclick="confirmExecutionSettlement()">🤝 精算を完了する</button>
     </div>
     <div class="message" id="settlement-msg">読み込み中...</div>
     <div class="settlement-sub-actions">
       <button type="button" class="sub-settle-btn primary-sub" onclick="openUnsettledModal()">
-        📋 未精算明細・個別精算 (<span id="unsettled-count-badge">0</span>件)
+        📋 立て替え明細を確認 (<span id="unsettled-count-badge">0</span>件)
       </button>
       <a id="sheet-direct-link" href="https://docs.google.com/spreadsheets/d/1vp9tEQQWmbfhnQgFLUwu6PhDxAlHamFq35njwv1uFPE/edit" target="_blank" rel="noopener" class="sub-settle-btn sheet-link" title="スプレッドシートを開く">
-        📊 スプシ
+        📊 詳細シート
       </a>
     </div>
   </section>
@@ -992,7 +1016,7 @@
   <!-- KPIグリッド -->
   <section class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label">未精算の共有費合計</div>
+      <div class="stat-label">今月の立て替え合計</div>
       <div class="stat-value" id="stat-unsettled">¥0</div>
     </div>
     <div class="stat-card">
@@ -1000,22 +1024,22 @@
       <div class="stat-value" id="stat-month-total">¥0</div>
     </div>
     <div class="stat-card husband">
-      <div class="stat-label">夫の立替（未精算）</div>
+      <div class="stat-label">夫の立て替え分</div>
       <div class="stat-value" id="stat-husband">¥0</div>
     </div>
     <div class="stat-card wife">
-      <div class="stat-label">妻の立替（未精算）</div>
+      <div class="stat-label">妻の立て替え分</div>
       <div class="stat-value" id="stat-wife">¥0</div>
     </div>
   </section>
 
-  <!-- ① メインアクション: アプリ内カメラでレシート撮影（完全無料・撮るだけ自動） -->
+  <!-- ① メインアクション: アプリ内カメラでレシート撮影 -->
   <section style="margin-bottom: 12px;">
     <label class="btn-hero-camera" for="receipt-file-input">
       <div class="camera-hero-icon">📷</div>
       <div class="camera-hero-text">
-        <div class="camera-hero-title">レシートを撮る（撮るだけ自動）</div>
-        <div class="camera-hero-sub">写真を撮るだけ！3秒で品目が自動展開（完全無料・0円）</div>
+        <div class="camera-hero-title">レシートを撮る</div>
+        <div class="camera-hero-sub">写真を撮るだけで品目を自動で読み取ります</div>
       </div>
       <div class="camera-hero-badge">おすすめ</div>
     </label>
@@ -1406,6 +1430,67 @@
   </div>
 </div>
 
+<!-- ⑤ アプリ設定 & GAS接続管理モーダル -->
+<div class="modal-backdrop" id="settings-modal" onclick="closeSettingsModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="preview-header">
+      <div class="preview-title">
+        <span>⚙️</span> アプリ設定・接続管理
+      </div>
+      <button type="button" class="delete-item-btn" onclick="closeSettingsModal()">✕</button>
+    </div>
+
+    <!-- 接続ステータス -->
+    <div style="background: var(--surface-subtle); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 0.82rem; font-weight: 700;">サーバー接続ステータス</span>
+        <span id="settings-conn-status" style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px; background: #E2E8F0; color: #475569;">未確認</span>
+      </div>
+      <div id="settings-conn-detail" style="font-size: 0.72rem; color: var(--muted); word-break: break-all;">
+        スプレッドシート連携APIの状態を確認します。
+      </div>
+      <button type="button" class="btn-block btn-secondary" onclick="testGasConnection()" style="margin-top: 8px; font-size: 0.8rem; padding: 7px;">
+        🔌 接続テストを実行
+      </button>
+    </div>
+
+    <!-- GAS URL設定 -->
+    <div class="form-group">
+      <label class="form-label">Google Apps Script (Web App) URL</label>
+      <input type="text" id="settings-gas-url" class="input-text" placeholder="https://script.google.com/macros/s/.../exec" style="font-size: 0.8rem; font-family: monospace;">
+      <div style="font-size: 0.72rem; color: var(--muted); margin-top: 4px; line-height: 1.35;">
+        ※ 新しいデプロイ等でURLが変更された場合は、ここに新URLを貼り付けて「保存」してください。
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+      <button type="button" class="btn-block btn-primary" onclick="saveGasUrlSettings()" style="margin-bottom: 0;">
+        💾 URLを保存
+      </button>
+      <button type="button" class="btn-block btn-secondary" onclick="resetGasUrlSettings()" style="margin-bottom: 0; flex: 0 0 auto; width: auto; font-size: 0.8rem; padding: 0 12px;">
+        初期値
+      </button>
+    </div>
+
+    <!-- クイックリンク -->
+    <div style="border-top: 1px solid var(--line); padding-top: 12px;">
+      <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 8px;">便利なリンク</div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <a id="settings-sheet-link" href="https://docs.google.com/spreadsheets/d/1vp9tEQQWmbfhnQgFLUwu6PhDxAlHamFq35njwv1uFPE/edit" target="_blank" rel="noopener" style="font-size: 0.8rem; color: var(--accent); text-decoration: none;">
+          📊 Googleスプレッドシート本体を開く ↗
+        </a>
+        <a href="https://gemini.google.com/gem-labs/1qpmIccOHqO3l-6yaCPpst9FL-Qrv6q0-" target="_blank" rel="noopener" style="font-size: 0.8rem; color: var(--purple); text-decoration: none;">
+          💎 専用Gemを開く（予備用） ↗
+        </a>
+      </div>
+    </div>
+
+    <button type="button" class="btn-block btn-secondary" onclick="closeSettingsModal()" style="margin-top: 16px;">
+      閉じる
+    </button>
+  </div>
+</div>
+
 <!-- トースト -->
 <div class="toast" id="toast"></div>
 
@@ -1496,7 +1581,121 @@
     renderPaymentMethodChips();
   }
 
-  const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycby9LG2-92_5zMXsYF4stL0PFVZNCj2TqcTCfYFhMaoJ5dUbDPYqy6HnwDN9a4A5Lsy6/exec";
+  const DEFAULT_GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycby9LG2-92_5zMXsYF4stL0PFVZNCj2TqcTCfYFhMaoJ5dUbDPYqy6HnwDN9a4A5Lsy6/exec";
+
+  function getGasEndpointUrl() {
+    return localStorage.getItem('kakeibo_gas_url') || DEFAULT_GAS_ENDPOINT_URL;
+  }
+
+  function showConnectionErrorBanner(detailMsg) {
+    const banner = document.getElementById('connection-error-banner');
+    const msgEl = document.getElementById('connection-error-msg');
+    if (banner) banner.style.display = 'block';
+    if (msgEl && detailMsg) msgEl.textContent = detailMsg;
+  }
+
+  function hideConnectionErrorBanner() {
+    const banner = document.getElementById('connection-error-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  // 設定モーダル
+  function openSettingsModal() {
+    const input = document.getElementById('settings-gas-url');
+    if (input) input.value = getGasEndpointUrl();
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function closeSettingsModal(e) {
+    if (e && e.target !== document.getElementById('settings-modal')) return;
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function saveGasUrlSettings() {
+    const input = document.getElementById('settings-gas-url');
+    const val = (input ? input.value : '').trim();
+    if (!val || !val.startsWith('http')) {
+      alert('有効なURL（https://script.google.com/macros/s/.../exec）を入力してください。');
+      return;
+    }
+    localStorage.setItem('kakeibo_gas_url', val);
+    showToast('⚙️ GAS接続URLを保存しました');
+    testGasConnection();
+    refreshSummary();
+  }
+
+  function resetGasUrlSettings() {
+    localStorage.removeItem('kakeibo_gas_url');
+    const input = document.getElementById('settings-gas-url');
+    if (input) input.value = DEFAULT_GAS_ENDPOINT_URL;
+    showToast('初期URLに戻しました');
+    testGasConnection();
+    refreshSummary();
+  }
+
+  async function testGasConnection() {
+    const statusEl = document.getElementById('settings-conn-status');
+    const detailEl = document.getElementById('settings-conn-detail');
+    if (statusEl) {
+      statusEl.textContent = 'テスト中...';
+      statusEl.style.background = '#FEF3C7';
+      statusEl.style.color = '#92400E';
+    }
+    if (detailEl) detailEl.textContent = '接続テストリクエストを送信しています...';
+
+    const res = await callGasApi('ping');
+    if (res && res.ok) {
+      if (statusEl) {
+        statusEl.textContent = '✅ 正常接続';
+        statusEl.style.background = '#DCFCE7';
+        statusEl.style.color = '#166534';
+      }
+      if (detailEl) detailEl.textContent = `接続成功: ${res.message || 'OK'} (${res.timestamp || ''})`;
+      hideConnectionErrorBanner();
+    } else {
+      if (statusEl) {
+        statusEl.textContent = '❌ 接続失敗';
+        statusEl.style.background = '#FEE2E2';
+        statusEl.style.color = '#991B1B';
+      }
+      if (detailEl) detailEl.textContent = `エラー: ${res.error || '応答なし。URLや権限（全員）を確認してください。'}`;
+      showConnectionErrorBanner(res.error);
+    }
+  }
+
+  // 統一GAS通信関数 (耐障害性・非JSONレスポンス検知付き)
+  async function callGasApi(action, payload) {
+    const url = getGasEndpointUrl();
+    try {
+      const bodyData = Object.assign({ action: action }, payload || {});
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(bodyData)
+      });
+
+      const rawText = await response.text();
+      let jsonRes;
+      try {
+        jsonRes = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.error('GAS HTML error response:', rawText.slice(0, 300));
+        const errMsg = 'GASから正常なデータが返っていません（HTMLエラー）。デプロイURLまたはアクセス権限（「全員」）をご確認ください。';
+        showConnectionErrorBanner(errMsg);
+        return { ok: false, error: errMsg };
+      }
+
+      hideConnectionErrorBanner();
+      return jsonRes;
+    } catch (networkErr) {
+      console.error('GAS network error:', networkErr);
+      const errMsg = 'サーバーと通信できませんでした。電波状況をご確認いただくか、⚙️設定でURLを確認してください。';
+      showConnectionErrorBanner(errMsg);
+      return { ok: false, error: errMsg };
+    }
+  }
 
   window.addEventListener('DOMContentLoaded', () => {
     loadPaymentMethodHistory();
@@ -1506,26 +1705,14 @@
     refreshSummary();
   });
 
-  function refreshSummary() {
+  async function refreshSummary() {
     showToast('最新データを取得中...');
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'summary' })
-    })
-    .then(r => r.json())
-    .then(res => {
+    const res = await callGasApi('summary');
+    if (res && res.ok) {
       renderSummary(res);
-    })
-    .catch(err => {
-      console.warn('fetch summary fallback to google.script.run:', err);
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(renderSummary)
-          .withFailureHandler((e) => showToast('照会失敗: ' + e))
-          .getDashboardSummary();
-      }
-    });
+    } else {
+      document.getElementById('settlement-msg').textContent = '接続エラー';
+    }
   }
 
   let cachedRecentItems = [];
@@ -1655,20 +1842,14 @@
         : '品目・割引・外税端数を読み取っています（数秒）';
     }
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'analyze',
-        base64Data: base64,
-        mimeType: 'image/jpeg'
-      })
-    })
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+    callGasApi('analyze', {
+      base64Data: base64,
+      mimeType: 'image/jpeg'
     })
     .then(res => {
+      if (!res || !res.ok) {
+        throw new Error(res ? res.error : '解析結果の取得に失敗しました');
+      }
       handleAnalysisSuccess(res);
     })
     .catch(err => {
@@ -2146,34 +2327,14 @@
       }
     };
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'register',
-        payload: payload
-      })
-    })
-    .then(r => r.json())
+    callGasApi('register', { payload: payload })
     .then(res => {
       onComplete(res);
     })
     .catch(err => {
-      console.warn('fetch register fallback to google.script.run:', err);
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(onComplete)
-          .withFailureHandler((e) => {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '✨ 登録して完了';
-            alert('登録通信エラー: ' + e);
-          })
-          .registerExpenses(payload);
-      } else {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '✨ 登録して完了';
-        alert('登録通信エラー: ' + err);
-      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = '✨ 登録して完了';
+      alert('登録通信エラー: ' + err.message);
     });
   }
 
@@ -2270,15 +2431,7 @@
       ]
     };
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'register',
-        payload: payload
-      })
-    })
-    .then(r => r.json())
+    callGasApi('register', { payload: payload })
     .then(res => {
       isSubmitting = false;
       if (btn) {
@@ -2300,37 +2453,12 @@
       }
     })
     .catch(err => {
-      console.warn('fetch manual register fallback to google.script.run:', err);
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler((res) => {
-            isSubmitting = false;
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = '✨ 手動入力で登録する';
-            }
-            document.getElementById('manual-modal').style.display = 'none';
-            document.getElementById('manual-amount').value = '';
-            showToast(`🎉 手動支出 ¥${amount.toLocaleString()} を登録しました！`);
-            refreshSummary();
-          })
-          .withFailureHandler((e) => {
-            isSubmitting = false;
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = '✨ 手動入力で登録する';
-            }
-            alert('登録エラー: ' + e);
-          })
-          .registerExpenses(payload);
-      } else {
-        isSubmitting = false;
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = '✨ 手動入力で登録する';
-        }
-        alert('手動登録通信エラー: ' + err);
+      isSubmitting = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '✨ 手動入力で登録する';
       }
+      alert('手動登録通信エラー: ' + err.message);
     });
   }
 
@@ -2348,15 +2476,7 @@
     const note = prompt('精算メモ（任意: 「9月度生活費精算 PayPay送金」等）を入力してください:', '');
     showToast('精算確定トランザクションを実行中...');
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'settle',
-        note: note || ''
-      })
-    })
-    .then(r => r.json())
+    callGasApi('settle', { note: note || '' })
     .then(res => {
       if (res && res.ok) {
         alert(`🎉 精算が正常に確定しました！\n\n精算ID: ${res.settleId}\n対象件数: ${res.settledCount}件\n結果: ${res.settlementText}`);
@@ -2367,22 +2487,7 @@
       }
     })
     .catch(err => {
-      console.warn('fetch settle fallback to google.script.run:', err);
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler((res) => {
-            if (res && res.ok) {
-              alert(`🎉 精算が正常に確定しました！\n\n精算ID: ${res.settleId}\n対象件数: ${res.settledCount}件\n結果: ${res.settlementText}`);
-              if (res.summary) renderSummary(res.summary);
-            } else {
-              alert('精算エラー: ' + (res ? res.error : '不明なエラー'));
-            }
-          })
-          .withFailureHandler((e) => alert('精算通信エラー: ' + e))
-          .executeSettlement(note);
-      } else {
-        alert('精算確定通信エラー: ' + err);
-      }
+      alert('精算確定通信エラー: ' + err.message);
     });
   }
 
@@ -2494,15 +2599,7 @@
       settled: newSettled
     };
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'toggleSettled',
-        payload: reqPayload
-      })
-    })
-    .then(r => r.json())
+    callGasApi('toggleSettled', { payload: reqPayload })
     .then(res => {
       isSubmitting = false;
       if (res && res.ok) {
@@ -2515,7 +2612,7 @@
     })
     .catch(err => {
       isSubmitting = false;
-      alert('通信エラー: ' + err);
+      alert('通信エラー: ' + err.message);
     });
   }
 
@@ -2621,15 +2718,7 @@
       settled: editSettledState
     };
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'updateRow',
-        payload: reqPayload
-      })
-    })
-    .then(r => r.json())
+    callGasApi('updateRow', { payload: reqPayload })
     .then(res => {
       isSubmitting = false;
       if (saveBtn) {
@@ -2652,7 +2741,7 @@
         saveBtn.disabled = false;
         saveBtn.textContent = '💾 変更を保存して反映';
       }
-      alert('通信エラー: ' + err);
+      alert('通信エラー: ' + err.message);
     });
   }
 
@@ -2674,15 +2763,7 @@
       expectedAmount: currentEditingRow.amount
     };
 
-    fetch(GAS_ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'deleteRow',
-        payload: reqPayload
-      })
-    })
-    .then(r => r.json())
+    callGasApi('deleteRow', { payload: reqPayload })
     .then(res => {
       isSubmitting = false;
       if (delBtn) {
@@ -2705,7 +2786,7 @@
         delBtn.disabled = false;
         delBtn.textContent = '🗑️ この明細を削除する';
       }
-      alert('通信エラー: ' + err);
+      alert('通信エラー: ' + err.message);
     });
   }
 
