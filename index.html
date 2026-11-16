@@ -1131,8 +1131,8 @@
     <div class="form-group">
       <label class="form-label">ベース負担ルール（各品目で個別変更も可能）</label>
       <div class="segmented-control" id="sharing-toggle">
-        <button type="button" class="active" onclick="setBaseSharing('折半 (5:5)')">🤝 折半 (5:5)</button>
-        <button type="button" onclick="setBaseSharing('夫 100%')">👨 夫 100%</button>
+        <button type="button" onclick="setBaseSharing('折半 (5:5)')">🤝 折半 (5:5)</button>
+        <button type="button" class="active" onclick="setBaseSharing('夫 100%')">👨 夫 100%</button>
         <button type="button" onclick="setBaseSharing('妻 100%')">👩 妻 100%</button>
       </div>
     </div>
@@ -1304,8 +1304,8 @@
     <div class="form-group">
       <label class="form-label">負担ルール</label>
       <div class="segmented-control" id="manual-sharing-toggle">
-        <button type="button" class="active" onclick="setManualSharing('折半 (5:5)')">🤝 折半</button>
-        <button type="button" onclick="setManualSharing('夫 100%')">👨 夫100%</button>
+        <button type="button" onclick="setManualSharing('折半 (5:5)')">🤝 折半</button>
+        <button type="button" class="active" onclick="setManualSharing('夫 100%')">👨 夫100%</button>
         <button type="button" onclick="setManualSharing('妻 100%')">👩 妻100%</button>
       </div>
     </div>
@@ -1501,12 +1501,15 @@
   let currentAnalysis = null;
   let selectedPayer = '夫';
   let selectedPaymentMethod = '楽天ペイ';
-  let selectedBaseSharing = '折半 (5:5)';
+  // 負担ルールの既定は「支払った人が100%負担」。ボタンで選んだら、その登録の間は支払者を変えても追従しない
+  let selectedBaseSharing = '夫 100%';
+  let baseSharingMode = 'payer'; // payer: 支払者に追従 / fixed: 本人が選択
   let selectedExpenseType = '日常費';
 
   let manualPayer = '夫';
   let manualPaymentMethod = '楽天ペイ';
-  let manualSharing = '折半 (5:5)';
+  let manualSharing = '夫 100%';
+  let manualSharingMode = 'payer'; // payer: 支払者に追従 / partner: 相手に追従(立替・送金) / fixed: 本人が選択
   let manualCategory = '交通費';
 
   const DEFAULT_PAYMENT_METHODS = ["楽天ペイ", "PayPay", "クレジットカード", "現金", "電子マネー"];
@@ -2239,15 +2242,29 @@
     ctrl.querySelectorAll('button').forEach(btn => {
       btn.classList.toggle('active', btn.textContent.trim().includes(p));
     });
+    if (baseSharingMode === 'payer') applyBaseSharing(ownSharingRule(p), false);
   }
 
+  function ownSharingRule(payer) { return payer.startsWith('妻') ? '妻 100%' : '夫 100%'; }
+  function partnerSharingRule(payer) { return payer.startsWith('妻') ? '夫 100%' : '妻 100%'; }
+
+  // ボタンで選んだ時だけ呼ばれる（以後この登録では支払者に追従しない）
   function setBaseSharing(rule) {
+    baseSharingMode = 'fixed';
+    applyBaseSharing(rule, true);
+  }
+
+  // overwriteAll=false の時は、品目ごとに個別変更したルールを残す
+  function applyBaseSharing(rule, overwriteAll) {
+    const prev = selectedBaseSharing;
     selectedBaseSharing = rule;
     document.getElementById('sharing-toggle').querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.textContent.trim().includes(rule.slice(0, 2)));
+      btn.classList.toggle('active', (btn.getAttribute('onclick') || '').includes(`'${rule}'`));
     });
     if (currentAnalysis) {
-      currentAnalysis.items.forEach(it => { it.sharingRule = rule; });
+      currentAnalysis.items.forEach(it => {
+        if (overwriteAll || !it.sharingRule || it.sharingRule === prev) it.sharingRule = rule;
+      });
       renderPreview();
     }
   }
@@ -2269,6 +2286,9 @@
     document.getElementById('receipt-file-input').value = '';
     document.getElementById('preview-section').style.display = 'none';
     document.getElementById('action-panel').style.display = 'grid';
+    // 次のレシートは既定（支払った人が負担）に戻す
+    baseSharingMode = 'payer';
+    applyBaseSharing(ownSharingRule(selectedPayer), true);
   }
 
   // 登録処理 (isContinuous: 連続撮影フラグ)
@@ -2340,6 +2360,9 @@
 
   // クイック手動入力モーダルロジック
   function openManualModal() {
+    // 登録のたびに既定（支払った人が負担）から始める
+    manualSharingMode = 'payer';
+    applyManualSharing(ownSharingRule(manualPayer));
     document.getElementById('manual-modal').style.display = 'flex';
     document.getElementById('manual-amount').focus();
   }
@@ -2371,6 +2394,14 @@
       document.getElementById('manual-item').value = '立替金';
       manualCategory = 'その他';
     }
+    // 立替・送金は相手のための支出なので相手100%。ほかの定型は支払った人の負担に戻す
+    if (type === 'transfer') {
+      manualSharingMode = 'partner';
+      applyManualSharing(partnerSharingRule(manualPayer));
+    } else if (manualSharingMode === 'partner') {
+      manualSharingMode = 'payer';
+      applyManualSharing(ownSharingRule(manualPayer));
+    }
   }
 
   function setManualPayer(p) {
@@ -2380,9 +2411,17 @@
     ctrl.querySelectorAll('button').forEach(btn => {
       btn.classList.toggle('active', btn.textContent.trim().includes(p));
     });
+    if (manualSharingMode === 'payer') applyManualSharing(ownSharingRule(p));
+    else if (manualSharingMode === 'partner') applyManualSharing(partnerSharingRule(p));
   }
 
+  // ボタンで選んだ時だけ呼ばれる（以後この登録では支払者に追従しない）
   function setManualSharing(rule) {
+    manualSharingMode = 'fixed';
+    applyManualSharing(rule);
+  }
+
+  function applyManualSharing(rule) {
     manualSharing = rule;
     document.getElementById('manual-sharing-toggle').querySelectorAll('button').forEach(btn => {
       btn.classList.toggle('active', (btn.getAttribute('onclick') || '').includes(`'${rule}'`));
