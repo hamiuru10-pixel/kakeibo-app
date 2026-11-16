@@ -1000,7 +1000,7 @@
       <div class="label">
         <span>⚖️</span> 現在の精算案内
       </div>
-      <button class="settle-action-btn" onclick="confirmExecutionSettlement()">🤝 精算を完了する</button>
+      <button class="settle-action-btn" id="settle-action-btn" onclick="confirmExecutionSettlement()">🤝 精算を完了する</button>
     </div>
     <div class="message" id="settlement-msg">読み込み中...</div>
     <div class="settlement-sub-actions">
@@ -1714,6 +1714,7 @@
     if (res && res.ok) {
       renderSummary(res);
     } else {
+      latestUnsettledCount = null;
       document.getElementById('settlement-msg').textContent = '接続エラー';
     }
   }
@@ -1722,14 +1723,24 @@
   let cachedUnsettledItems = [];
   let unsettledPayerFilter = 'ALL';
   let currentEditingRow = null;
+  // 精算ボタンの判定は表示文字列でなく、サーバーが数えた未精算の件数で行う（null=未取得）
+  let latestUnsettledCount = null;
 
   function renderSummary(res) {
     if (!res || !res.ok) {
+      latestUnsettledCount = null;
       document.getElementById('settlement-msg').textContent = '取得できませんでした';
       return;
     }
 
     document.getElementById('settlement-msg').textContent = res.settlementMessage || '精算完了';
+    latestUnsettledCount = (typeof res.unsettledCount === 'number') ? res.unsettledCount : (res.unsettledItems || []).length;
+    const settleBtn = document.getElementById('settle-action-btn');
+    if (settleBtn) {
+      // 差額0円（相殺）の月は「送金なしで締める」。未精算が残ったまま積み上がらないようにする
+      settleBtn.textContent = (latestUnsettledCount > 0 && String(res.settlementMessage || '').includes('差額なし'))
+        ? '🤝 送金なしで締める' : '🤝 精算を完了する';
+    }
     document.getElementById('stat-unsettled').textContent = formatYen(res.totalUnsettled);
     document.getElementById('stat-month-total').textContent = formatYen(res.monthTotal);
     document.getElementById('stat-husband').textContent = formatYen(res.husbandPaid);
@@ -2504,12 +2515,20 @@
   // ワンクリック精算確定
   function confirmExecutionSettlement() {
     const msg = document.getElementById('settlement-msg').textContent;
-    if (msg.includes('精算完了') || msg.includes('差額なし')) {
-      alert('現在、未精算の差額はありません。');
+    const cnt = latestUnsettledCount;
+    if (cnt === null) {
+      alert('最新の集計を取得できていません。画面を再読み込みしてから、もう一度押してください。');
+      return;
+    }
+    if (cnt === 0) {
+      alert('未精算の明細はありません。');
       return;
     }
 
-    const ok = confirm(`【精算確定の確認】\n\n現在の精算判定:\n「${msg}」\n\n実際に送金・精算を完了しましたか？\n確定すると未精算明細がすべて「精算済」になり、精算履歴に永久記録されます。`);
+    const noTransfer = msg.includes('差額なし');
+    const ok = noTransfer
+      ? confirm(`【送金なしで締める】\n\n差額は0円です（立て替えがきれいに相殺されています）。\n送金はせずに、未精算の明細${cnt}件を「精算済」にして締めますか？\n確定すると精算履歴に記録されます。`)
+      : confirm(`【精算確定の確認】\n\n現在の精算判定:\n「${msg}」\n\n実際に送金・精算を完了しましたか？\n確定すると未精算明細がすべて「精算済」になり、精算履歴に永久記録されます。`);
     if (!ok) return;
 
     const note = prompt('精算メモ（任意: 「9月度生活費精算 PayPay送金」等）を入力してください:', '');
