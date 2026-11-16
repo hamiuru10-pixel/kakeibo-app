@@ -1715,6 +1715,7 @@
       renderSummary(res);
     } else {
       latestUnsettledCount = null;
+      latestUnsettledFingerprint = null;
       document.getElementById('settlement-msg').textContent = '接続エラー';
     }
   }
@@ -1725,16 +1726,20 @@
   let currentEditingRow = null;
   // 精算ボタンの判定は表示文字列でなく、サーバーが数えた未精算の件数で行う（null=未取得）
   let latestUnsettledCount = null;
+  // 画面に出した未精算の中身の指紋。精算時にサーバーへ送り、確認後に明細が変わっていたら断ってもらう
+  let latestUnsettledFingerprint = null;
 
   function renderSummary(res) {
     if (!res || !res.ok) {
       latestUnsettledCount = null;
+      latestUnsettledFingerprint = null;
       document.getElementById('settlement-msg').textContent = '取得できませんでした';
       return;
     }
 
     document.getElementById('settlement-msg').textContent = res.settlementMessage || '精算完了';
     latestUnsettledCount = (typeof res.unsettledCount === 'number') ? res.unsettledCount : (res.unsettledItems || []).length;
+    latestUnsettledFingerprint = res.unsettledFingerprint || null;
     const settleBtn = document.getElementById('settle-action-btn');
     if (settleBtn) {
       // 差額0円（相殺）の月は「送金なしで締める」。未精算が残ったまま積み上がらないようにする
@@ -2516,7 +2521,8 @@
   function confirmExecutionSettlement() {
     const msg = document.getElementById('settlement-msg').textContent;
     const cnt = latestUnsettledCount;
-    if (cnt === null) {
+    const fingerprint = latestUnsettledFingerprint;
+    if (cnt === null || !fingerprint) {
       alert('最新の集計を取得できていません。画面を再読み込みしてから、もう一度押してください。');
       return;
     }
@@ -2534,12 +2540,17 @@
     const note = prompt('精算メモ（任意: 「9月度生活費精算 PayPay送金」等）を入力してください:', '');
     showToast('精算確定トランザクションを実行中...');
 
-    callGasApi('settle', { note: note || '' })
+    callGasApi('settle', { note: note || '', fingerprint: fingerprint })
     .then(res => {
       if (res && res.ok) {
         alert(`🎉 精算が正常に確定しました！\n\n精算ID: ${res.settleId}\n対象件数: ${res.settledCount}件\n結果: ${res.settlementText}`);
         if (res.summary) renderSummary(res.summary);
         else refreshSummary();
+      } else if (res && res.code === 'STALE') {
+        // 確認後に明細が変わった: 何も締めずに、最新の額を表示し直す
+        if (res.summary) renderSummary(res.summary);
+        else refreshSummary();
+        alert('⚠️ 精算していません\n\n' + res.error);
       } else {
         alert('精算エラー: ' + (res ? res.error : '不明なエラー'));
       }
