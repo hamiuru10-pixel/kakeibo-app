@@ -2385,7 +2385,7 @@
   function setManualSharing(rule) {
     manualSharing = rule;
     document.getElementById('manual-sharing-toggle').querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.textContent.trim().includes(rule.slice(0, 2)));
+      btn.classList.toggle('active', (btn.getAttribute('onclick') || '').includes(`'${rule}'`));
     });
   }
 
