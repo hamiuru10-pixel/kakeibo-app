@@ -1454,6 +1454,18 @@
       </button>
     </div>
 
+    <!-- 合言葉 -->
+    <div class="form-group">
+      <label class="form-label">合言葉（このスマホに保存）</label>
+      <input type="password" id="settings-access-key" class="input-text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼り付けて「合言葉を保存」" style="font-size: 0.8rem; font-family: monospace;">
+      <div style="font-size: 0.72rem; color: var(--muted); margin-top: 4px; line-height: 1.35;">
+        ※ 家計簿をほかの人に読まれないための鍵です。1台につき最初の1回だけ入れます。
+      </div>
+      <button type="button" class="btn-block btn-primary" onclick="saveAccessKeySettings()" style="margin-top: 8px; margin-bottom: 0;">
+        🔑 合言葉を保存
+      </button>
+    </div>
+
     <!-- GAS URL設定 -->
     <div class="form-group">
       <label class="form-label">Google Apps Script (Web App) URL</label>
@@ -1590,6 +1602,35 @@
     return localStorage.getItem('kakeibo_gas_url') || DEFAULT_GAS_ENDPOINT_URL;
   }
 
+  // 合言葉: サーバーは合言葉の合わない要求を断る。値はこのスマホの中だけに保存する（画面のソースには書かない）
+  const ACCESS_KEY_STORAGE = 'kakeibo_access_key';
+  function getAccessKey() {
+    try { return localStorage.getItem(ACCESS_KEY_STORAGE) || ''; } catch (_) { return ''; }
+  }
+  function saveAccessKey(value) {
+    try { localStorage.setItem(ACCESS_KEY_STORAGE, String(value || '').trim()); } catch (_) {}
+  }
+  // 設定用リンク（…/#key=合言葉）で開いた時は、合言葉を保存してアドレスから消す
+  (function adoptAccessKeyFromLink() {
+    const m = /[#&]key=([^&]+)/.exec(location.hash || '');
+    if (!m) return;
+    saveAccessKey(decodeURIComponent(m[1]));
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+  })();
+
+  function saveAccessKeySettings() {
+    const input = document.getElementById('settings-access-key');
+    const val = (input ? input.value : '').trim();
+    if (!val) {
+      alert('合言葉を貼り付けてから保存してください。');
+      return;
+    }
+    saveAccessKey(val);
+    showToast('🔑 合言葉を保存しました');
+    testGasConnection();
+    refreshSummary();
+  }
+
   function showConnectionErrorBanner(detailMsg) {
     const banner = document.getElementById('connection-error-banner');
     const msgEl = document.getElementById('connection-error-msg');
@@ -1606,6 +1647,8 @@
   function openSettingsModal() {
     const input = document.getElementById('settings-gas-url');
     if (input) input.value = getGasEndpointUrl();
+    const keyInput = document.getElementById('settings-access-key');
+    if (keyInput) keyInput.value = getAccessKey();
     const modal = document.getElementById('settings-modal');
     if (modal) modal.style.display = 'flex';
   }
@@ -1669,10 +1712,10 @@
   }
 
   // 統一GAS通信関数 (耐障害性・非JSONレスポンス検知付き)
-  async function callGasApi(action, payload) {
+  async function callGasApi(action, payload, isAuthRetry) {
     const url = getGasEndpointUrl();
     try {
-      const bodyData = Object.assign({ action: action }, payload || {});
+      const bodyData = Object.assign({ action: action, token: getAccessKey() }, payload || {});
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1688,6 +1731,22 @@
         const errMsg = 'GASから正常なデータが返っていません（HTMLエラー）。デプロイURLまたはアクセス権限（「全員」）をご確認ください。';
         showConnectionErrorBanner(errMsg);
         return { ok: false, error: errMsg };
+      }
+
+      if (jsonRes && jsonRes.code === 'AUTH') {
+        // 合言葉がない・違う: その場で1回だけ聞き直す（何も送り直さずに諦めるより、入力の機会を作る）
+        if (!isAuthRetry) {
+          const entered = prompt(getAccessKey()
+            ? '合言葉が違うようです。もう一度貼り付けてください。'
+            : 'この家計簿は合言葉で守られています。\n合言葉を貼り付けてください（このスマホでは最初の1回だけ）。', '');
+          if (entered && entered.trim()) {
+            saveAccessKey(entered);
+            return callGasApi(action, payload, true);
+          }
+        }
+        const authMsg = '合言葉が必要です。⚙️設定に合言葉を入れてください。';
+        showConnectionErrorBanner(authMsg);
+        return { ok: false, code: 'AUTH', error: authMsg };
       }
 
       hideConnectionErrorBanner();
