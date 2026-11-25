@@ -1457,9 +1457,9 @@
     <!-- 合言葉 -->
     <div class="form-group">
       <label class="form-label">合言葉（このスマホに保存）</label>
-      <input type="password" id="settings-access-key" class="input-text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼り付けて「合言葉を保存」" style="font-size: 0.8rem; font-family: monospace;">
+      <input type="password" id="settings-access-key" class="input-text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="40文字を貼り付けて「合言葉を保存」" style="font-size: 0.8rem; font-family: monospace;">
       <div style="font-size: 0.72rem; color: var(--muted); margin-top: 4px; line-height: 1.35;">
-        ※ 家計簿をほかの人に読まれないための鍵です。1台につき最初の1回だけ入れます。
+        ※ 自分で決める言葉ではありません。家計簿のスプレッドシートの「アプリの合言葉」シートにある40文字を、そのまま貼り付けます（1台につき最初の1回だけ）。
       </div>
       <button type="button" class="btn-block btn-primary" onclick="saveAccessKeySettings()" style="margin-top: 8px; margin-bottom: 0;">
         🔑 合言葉を保存
@@ -1632,6 +1632,10 @@
       alert('合言葉を貼り付けてから保存してください。');
       return;
     }
+    if (normalizeAccessKey(val).length < 20) {
+      alert('文字数が足りません。\n合言葉は自分で決める言葉ではなく、スプレッドシートの「アプリの合言葉」シートにある40文字です。そのまま貼り付けてください。');
+      return;
+    }
     saveAccessKey(val);
     showToast('🔑 合言葉を保存しました');
     testGasConnection();
@@ -1753,16 +1757,16 @@
         // 合言葉がない・違う: その場で1回だけ聞き直す（何も送り直さずに諦めるより、入力の機会を作る）
         if (!isAuthRetry) {
           const entered = prompt(getAccessKey()
-            ? '合言葉が違うようです。もう一度貼り付けてください。'
-            : 'この家計簿は合言葉で守られています。\n合言葉を貼り付けてください（このスマホでは最初の1回だけ）。', '');
+            ? '合言葉が合っていません。\n自分で決める言葉ではなく、スプレッドシートの「アプリの合言葉」シートにある40文字を貼り付けてください。'
+            : 'この家計簿は合言葉で守られています。\nスプレッドシートの「アプリの合言葉」シートにある40文字を貼り付けてください（このスマホでは最初の1回だけ）。', '');
           if (entered && entered.trim()) {
             saveAccessKey(entered);
             return callGasApi(action, payload, true);
           }
         }
         const authMsg = getAccessKey()
-          ? 'サーバーとはつながっています。保存してある合言葉が合っていません。下のボタンから貼り直してください。'
-          : 'サーバーとはつながっています。このスマホにまだ合言葉が入っていません。下のボタンから貼り付けてください（最初の1回だけ）。';
+          ? 'サーバーとはつながっています。保存してある合言葉が合っていません。合言葉は自分で決める言葉ではなく、スプレッドシートにある40文字です。下のボタンから貼り直してください。'
+          : 'サーバーとはつながっています。このスマホにまだ合言葉が入っていません。スプレッドシートにある40文字を、下のボタンから貼り付けてください（最初の1回だけ）。';
         showConnectionErrorBanner(authMsg, 'auth');
         return { ok: false, code: 'AUTH', error: authMsg };
       }
