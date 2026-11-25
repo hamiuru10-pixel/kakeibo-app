@@ -1459,6 +1459,7 @@
         <button type="button" class="active" onclick="setEditSettled(false)">⏳ 未精算</button>
         <button type="button" onclick="setEditSettled(true)">✅ 精算済</button>
       </div>
+      <div id="edit-settled-hint" style="display: none; font-size: 0.72rem; color: var(--accent-ink); background: var(--accent-soft); border-radius: 6px; padding: 5px 8px; margin-top: 6px; line-height: 1.4;"></div>
     </div>
 
     <!-- 金額 & 日付 -->
@@ -2864,6 +2865,32 @@
   let editSettledState = false;
   let editPayerState = '夫';
   let editSharingState = '折半 (5:5)';
+  // 画面を開く間は自動の切替を止める（開いた時点の値をそのまま見せるため）
+  let editAutoSettleEnabled = false;
+
+  // 自分で払って自分が100%負担＝相手との貸し借りがない
+  function editHasNoDebt(payer, rule) {
+    return String(rule || '').startsWith(payer) && String(rule || '').includes('100');
+  }
+
+  // 支払者や負担を変えた時、登録時と同じ決まりで精算ステータスを合わせる（そのあと手で変えることもできる）
+  function syncEditSettledToRule(wasNoDebt) {
+    if (!editAutoSettleEnabled) return;
+    const isNoDebt = editHasNoDebt(editPayerState, editSharingState);
+    const hint = document.getElementById('edit-settled-hint');
+    let msg = '';
+    if (!wasNoDebt && isNoDebt) {
+      setEditSettled(true);
+      msg = '自分で払って自分の負担になったので「精算済」にしました（貸し借りがないため）。';
+    } else if (wasNoDebt && !isNoDebt) {
+      setEditSettled(false);
+      msg = '立て替えが生じる内容になったので「未精算」にしました。';
+    }
+    if (hint && msg) {
+      hint.textContent = msg;
+      hint.style.display = 'block';
+    }
+  }
 
   function openEditRowModalFromRecent(idx) {
     const it = cachedRecentItems[idx];
@@ -2888,9 +2915,13 @@
     document.getElementById('edit-item').value = it.item || '';
     document.getElementById('edit-method').value = it.paymentMethod || '楽天ペイ';
 
+    editAutoSettleEnabled = false;
     setEditSettled(Boolean(it.settled));
     setEditPayer(String(it.payer || '夫').startsWith('妻') ? '妻' : '夫');
     setEditSharing(it.sharingRule || '折半 (5:5)');
+    editAutoSettleEnabled = true;
+    const settledHint = document.getElementById('edit-settled-hint');
+    if (settledHint) { settledHint.textContent = ''; settledHint.style.display = 'none'; }
 
     document.getElementById('edit-row-modal').style.display = 'flex';
   }
@@ -2911,6 +2942,7 @@
   }
 
   function setEditPayer(payer) {
+    const wasNoDebt = editHasNoDebt(editPayerState, editSharingState);
     editPayerState = payer;
     const ctrl = document.getElementById('edit-payer-toggle');
     if (!ctrl) return;
@@ -2918,16 +2950,19 @@
     const btns = ctrl.querySelectorAll('button');
     btns[0].className = payer === '夫' ? 'active' : '';
     btns[1].className = payer === '妻' ? 'active' : '';
+    syncEditSettledToRule(wasNoDebt);
   }
 
   function setEditSharing(rule) {
+    const wasNoDebt = editHasNoDebt(editPayerState, editSharingState);
     editSharingState = rule;
     const ctrl = document.getElementById('edit-sharing-toggle');
     if (!ctrl) return;
     const btns = ctrl.querySelectorAll('button');
-    btns[0].className = rule === '折半 (5:5)' ? 'active' : '';
+    btns[0].className = String(rule).startsWith('折半') ? 'active' : '';
     btns[1].className = rule === '夫 100%' ? 'active' : '';
     btns[2].className = rule === '妻 100%' ? 'active' : '';
+    syncEditSettledToRule(wasNoDebt);
   }
 
   function submitEditExpenseRow() {
