@@ -955,6 +955,44 @@
       transform: translateX(-50%) translateY(0);
       opacity: 1;
     }
+    /* 内訳（だれが何にいくら） */
+    .breakdown-open-btn {
+      display: block; width: 100%; margin: 0 0 12px; padding: 12px 14px;
+      background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+      border-radius: var(--radius-md); font-size: 0.9rem; font-weight: 700; text-align: left;
+      cursor: pointer; box-shadow: var(--shadow-sm);
+    }
+    .breakdown-open-btn small { display: block; font-weight: 400; font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .bd-month-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .bd-month-row select { flex: 1; padding: 8px 10px; font-size: 0.9rem; font-weight: 700; text-align: center; }
+    .bd-total-card {
+      background: var(--surface-subtle); border: 1px solid var(--line); border-radius: var(--radius-md);
+      padding: 12px 14px; margin: 10px 0;
+    }
+    .bd-total-label { font-size: 0.76rem; color: var(--ink-secondary); }
+    .bd-total-value { font-size: 1.5rem; font-weight: 800; color: var(--ink); line-height: 1.25; }
+    .bd-total-sub { font-size: 0.74rem; color: var(--ink-secondary); margin-top: 2px; }
+    .bd-cat-row {
+      display: block; width: 100%; text-align: left; background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; cursor: pointer;
+    }
+    .bd-cat-row.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+    .bd-cat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.86rem; font-weight: 700; }
+    .bd-cat-head span:last-child { white-space: nowrap; }
+    .bd-cat-meta { font-size: 0.7rem; font-weight: 400; color: var(--ink-secondary); margin-left: 6px; }
+    .bd-bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
+    .bd-bar > div { height: 100%; border-radius: 3px; background: var(--accent); }
+    .bd-list-title { font-size: 0.8rem; font-weight: 700; margin: 12px 0 6px; color: var(--ink-secondary); }
+    .bd-item { display: flex; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+    .bd-item:last-child { border-bottom: none; }
+    .bd-item-main { min-width: 0; }
+    .bd-item-name { font-size: 0.84rem; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bd-item-sub { font-size: 0.7rem; color: var(--ink-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bd-item-amount { font-size: 0.88rem; font-weight: 700; color: var(--ink); white-space: nowrap; text-align: right; }
+    .bd-item-amount small { display: block; font-size: 0.66rem; font-weight: 400; color: var(--muted); }
+    .bd-note { font-size: 0.72rem; color: var(--ink-secondary); line-height: 1.45; margin: 10px 0 12px; }
+    .bd-empty { text-align: center; color: var(--muted); font-size: 0.82rem; padding: 18px 0; }
+
   </style>
 </head>
 <body>
@@ -1032,6 +1070,12 @@
       <div class="stat-value" id="stat-wife">¥0</div>
     </div>
   </section>
+
+  <!-- 内訳（だれが何にいくら）への入口 -->
+  <button type="button" class="breakdown-open-btn" onclick="openBreakdownModal()">
+    📊 だれが何にいくら（月ごとの内訳）
+    <small>夫・妻それぞれが負担した額を、費目ごとに見られます</small>
+  </button>
 
   <!-- ① メインアクション: アプリ内カメラでレシート撮影 -->
   <section style="margin-bottom: 12px;">
@@ -1345,6 +1389,54 @@
     </div>
 
     <button type="button" class="btn-block btn-secondary" onclick="closeUnsettledModal()">
+      閉じる
+    </button>
+  </div>
+</div>
+
+<!-- ⑤ 内訳（だれが何にいくら） -->
+<div class="modal-backdrop" id="breakdown-modal" onclick="closeBreakdownModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="preview-header">
+      <div class="preview-title">
+        <span>📊</span> だれが何にいくら
+      </div>
+      <button type="button" class="delete-item-btn" onclick="closeBreakdownModal()">✕</button>
+    </div>
+
+    <div class="bd-month-row">
+      <button type="button" class="chip-btn" id="bd-prev-btn" onclick="shiftBreakdownMonth(1)" aria-label="前の月">◀</button>
+      <select id="bd-month-select" class="input-text" onchange="loadBreakdown(this.value)" aria-label="月を選ぶ"></select>
+      <button type="button" class="chip-btn" id="bd-next-btn" onclick="shiftBreakdownMonth(-1)" aria-label="次の月">▶</button>
+    </div>
+
+    <div class="chips-group" id="bd-person-chips" style="margin-top: 0;">
+      <button type="button" class="chip-btn" data-person="妻" onclick="setBreakdownPerson('妻')">👩 妻</button>
+      <button type="button" class="chip-btn" data-person="夫" onclick="setBreakdownPerson('夫')">👨 夫</button>
+      <button type="button" class="chip-btn" data-person="both" onclick="setBreakdownPerson('both')">👫 ふたり</button>
+    </div>
+    <div class="chips-group" id="bd-scope-chips">
+      <button type="button" class="chip-btn" data-scope="all" onclick="setBreakdownScope('all')">すべて</button>
+      <button type="button" class="chip-btn" data-scope="own" onclick="setBreakdownScope('own')">ひとりで負担</button>
+      <button type="button" class="chip-btn" data-scope="split" onclick="setBreakdownScope('split')">折半</button>
+    </div>
+
+    <div class="bd-total-card">
+      <div class="bd-total-label" id="bd-total-label">読み込み中...</div>
+      <div class="bd-total-value" id="bd-total-value">¥0</div>
+      <div class="bd-total-sub" id="bd-total-sub"></div>
+    </div>
+
+    <div id="bd-categories"></div>
+
+    <div class="bd-list-title" id="bd-list-title">明細</div>
+    <div class="unsettled-list-container" id="bd-items" style="max-height: 46vh;"></div>
+
+    <div class="bd-note">
+      金額は「負担した額」です。折半の買い物は半分ずつ、どちらか100%の買い物はその人に全額が入ります。だれが支払ったかは明細の下の行に出ます。
+    </div>
+
+    <button type="button" class="btn-block btn-secondary" onclick="closeBreakdownModal()">
       閉じる
     </button>
   </div>
@@ -2950,6 +3042,173 @@
 
   function formatYen(num) {
     return '¥' + Number(num || 0).toLocaleString();
+  }
+
+  // =========================================================================
+  // ⑤ 内訳（だれが何にいくら）: 月ごと・人ごと・費目ごとに、負担した額を見る
+  // =========================================================================
+  const BD_PERSON_STORAGE = 'kakeibo_bd_person';
+  let bdMonth = '';
+  let bdMonths = [];
+  let bdItems = [];
+  let bdPerson = 'both';
+  let bdScope = 'all';
+  let bdCategory = '';
+  const bdCache = {};
+
+  function bdRuleKind(rule) {
+    const r = String(rule || '');
+    if (r.startsWith('夫')) return '夫';
+    if (r.startsWith('妻')) return '妻';
+    return 'split';
+  }
+
+  // 画面に出す数字はすべてここで作る（表示と切り離して確かめられるようにする）
+  function computeBreakdown(items, person, scope, category) {
+    const rows = [];
+    let total = 0, ownTotal = 0, splitTotal = 0;
+    const catMap = {};
+    (items || []).forEach(it => {
+      const kind = bdRuleKind(it.sharingRule);
+      const share = person === '夫' ? Number(it.husbandShare) || 0
+                  : person === '妻' ? Number(it.wifeShare) || 0
+                  : Number(it.amount) || 0;
+      // その人の負担が0円の行は、その人の内訳には入れない（値引きのマイナスは入れる）
+      if (person !== 'both' && share === 0) return;
+      if (scope === 'own' && kind === 'split') return;
+      if (scope === 'split' && kind !== 'split') return;
+      total += share;
+      if (kind === 'split') splitTotal += share; else ownTotal += share;
+      const cat = it.majorCategory || 'その他';
+      if (!catMap[cat]) catMap[cat] = { name: cat, total: 0, count: 0 };
+      catMap[cat].total += share;
+      catMap[cat].count++;
+      if (!category || category === cat) rows.push(Object.assign({}, it, { share: share, kind: kind }));
+    });
+    const cats = Object.keys(catMap).map(k => catMap[k]).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.rowNumber || 0) - (a.rowNumber || 0));
+    const count = cats.reduce((n, c) => n + c.count, 0);
+    return { total: total, ownTotal: ownTotal, splitTotal: splitTotal, count: count, cats: cats, rows: rows };
+  }
+
+  function openBreakdownModal() {
+    try { bdPerson = localStorage.getItem(BD_PERSON_STORAGE) || 'both'; } catch (_) {}
+    document.getElementById('breakdown-modal').style.display = 'flex';
+    loadBreakdown(bdMonth || '');
+  }
+
+  function closeBreakdownModal(e) {
+    if (e && e.target !== document.getElementById('breakdown-modal')) return;
+    document.getElementById('breakdown-modal').style.display = 'none';
+  }
+
+  async function loadBreakdown(month, force) {
+    const key = month || '';
+    if (!force && key && bdCache[key]) {
+      applyBreakdownResponse(bdCache[key]);
+      return;
+    }
+    document.getElementById('bd-total-label').textContent = '読み込み中...';
+    const res = await callGasApi('breakdown', { month: key });
+    if (res && res.ok && Array.isArray(res.items)) {
+      bdCache[res.month] = res;
+      applyBreakdownResponse(res);
+    } else {
+      document.getElementById('bd-total-label').textContent = '内訳を取得できませんでした';
+      document.getElementById('bd-total-value').textContent = '—';
+      document.getElementById('bd-total-sub').textContent = (res && res.error) ? res.error : '';
+      document.getElementById('bd-categories').innerHTML = '';
+      document.getElementById('bd-items').innerHTML = '<div class="bd-empty">時間をおいて、もう一度開いてください</div>';
+    }
+  }
+
+  function applyBreakdownResponse(res) {
+    bdMonth = res.month;
+    bdMonths = res.months || [res.month];
+    bdItems = res.items || [];
+    bdCategory = '';
+    const sel = document.getElementById('bd-month-select');
+    sel.innerHTML = bdMonths.map(m => `<option value="${escapeHtml(m)}"${m === bdMonth ? ' selected' : ''}>${escapeHtml(m.replace('/', '年') + '月')}</option>`).join('');
+    renderBreakdown();
+  }
+
+  // months は新しい順。step=1 で前の月（古い方）、-1 で次の月（新しい方）
+  function shiftBreakdownMonth(step) {
+    const idx = bdMonths.indexOf(bdMonth);
+    const next = bdMonths[idx + step];
+    if (idx < 0 || !next) return;
+    loadBreakdown(next);
+  }
+
+  function setBreakdownPerson(person) {
+    bdPerson = person;
+    try { localStorage.setItem(BD_PERSON_STORAGE, person); } catch (_) {}
+    bdCategory = '';
+    renderBreakdown();
+  }
+
+  function setBreakdownScope(scope) {
+    bdScope = scope;
+    bdCategory = '';
+    renderBreakdown();
+  }
+
+  function toggleBreakdownCategory(name) {
+    bdCategory = (bdCategory === name) ? '' : name;
+    renderBreakdown();
+  }
+
+  function renderBreakdown() {
+    document.getElementById('bd-person-chips').querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-person') === bdPerson);
+    });
+    document.getElementById('bd-scope-chips').querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-scope') === bdScope);
+    });
+    const idx = bdMonths.indexOf(bdMonth);
+    const prevBtn = document.getElementById('bd-prev-btn');
+    const nextBtn = document.getElementById('bd-next-btn');
+    if (prevBtn) prevBtn.disabled = !(idx >= 0 && bdMonths[idx + 1]);
+    if (nextBtn) nextBtn.disabled = !(idx > 0);
+
+    const r = computeBreakdown(bdItems, bdPerson, bdScope, bdCategory);
+    const who = bdPerson === 'both' ? 'ふたり' : bdPerson;
+    const scopeLabel = bdScope === 'own' ? '（ひとりで負担した分）' : bdScope === 'split' ? '（折半の分）' : '';
+    document.getElementById('bd-total-label').textContent = `${bdMonth.replace('/', '年')}月　${who}の負担${scopeLabel}`;
+    document.getElementById('bd-total-value').textContent = formatYen(r.total);
+    document.getElementById('bd-total-sub').textContent = r.count === 0 ? ''
+      : (bdScope === 'all' ? `${r.count}件　ひとりで負担 ${formatYen(r.ownTotal)}／折半 ${formatYen(r.splitTotal)}` : `${r.count}件`);
+
+    const catEl = document.getElementById('bd-categories');
+    const maxCat = r.cats.reduce((m, c) => Math.max(m, c.total), 0);
+    catEl.innerHTML = r.cats.map(c => {
+      const pct = r.total > 0 ? Math.round(c.total / r.total * 100) : 0;
+      const width = maxCat > 0 ? Math.max(0, Math.round(c.total / maxCat * 100)) : 0;
+      return `<button type="button" class="bd-cat-row${bdCategory === c.name ? ' active' : ''}" data-cat="${escapeHtml(c.name)}" onclick="toggleBreakdownCategory(this.getAttribute('data-cat'))">
+        <div class="bd-cat-head"><span>${escapeHtml(c.name)}<span class="bd-cat-meta">${c.count}件・${pct}%</span></span><span>${formatYen(c.total)}</span></div>
+        <div class="bd-bar"><div style="width: ${width}%;"></div></div>
+      </button>`;
+    }).join('');
+
+    document.getElementById('bd-list-title').textContent = bdCategory ? `明細（${bdCategory}・${r.rows.length}件）もう一度押すと全部に戻ります` : `明細（${r.rows.length}件）`;
+    const listEl = document.getElementById('bd-items');
+    if (r.rows.length === 0) {
+      listEl.innerHTML = '<div class="bd-empty">この条件の明細はありません</div>';
+      return;
+    }
+    listEl.innerHTML = r.rows.map(it => {
+      const ruleLabel = it.kind === 'split' ? '折半' : `${it.kind}100%`;
+      const minor = it.minorCategory ? '・' + String(it.minorCategory).slice(0, 14) : '';
+      const full = (bdPerson !== 'both' && it.share !== it.amount) ? `<small>全体 ${formatYen(it.amount)}</small>` : '';
+      return `<div class="bd-item">
+        <div class="bd-item-main">
+          <div class="bd-item-name">${escapeHtml(it.item || '（品名なし）')}</div>
+          <div class="bd-item-sub">${escapeHtml(String(it.date).slice(5))} ${escapeHtml(it.store)}</div>
+          <div class="bd-item-sub">${escapeHtml(it.payer)}が支払い・${escapeHtml(ruleLabel)}・${escapeHtml(it.majorCategory + minor)}</div>
+        </div>
+        <div class="bd-item-amount">${formatYen(it.share)}${full}</div>
+      </div>`;
+    }).join('');
   }
 
   function escapeHtml(str) {
