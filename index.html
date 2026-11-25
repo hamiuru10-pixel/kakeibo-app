@@ -978,14 +978,14 @@
   <!-- 接続エラー警告バナー（通信遮断・404/403時に自動出現） -->
   <div id="connection-error-banner" style="display: none; background: #FEF2F2; border: 1.5px solid #FCA5A5; color: #991B1B; padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 14px; font-size: 0.82rem; line-height: 1.45; box-shadow: var(--shadow-sm);">
     <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-      <span>⚠️ サーバー（スプレッドシート）と通信できません</span>
+      <span id="connection-error-title">⚠️ サーバー（スプレッドシート）と通信できません</span>
       <button type="button" style="background: none; border: none; font-size: 1rem; color: #991B1B; cursor: pointer;" onclick="hideConnectionErrorBanner()">✕</button>
     </div>
     <div id="connection-error-msg" style="font-size: 0.78rem; opacity: 0.9; margin-bottom: 8px;">
       最新データが反映されていません。GASのウェブアプリURLやアクセス権限をご確認ください。
     </div>
     <div style="display: flex; gap: 8px;">
-      <button type="button" onclick="openSettingsModal()" style="background: #DC2626; color: #FFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
+      <button type="button" id="connection-error-settings-btn" onclick="openSettingsModal()" style="background: #DC2626; color: #FFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
         ⚙️ 接続URLを確認・設定
       </button>
       <button type="button" onclick="refreshSummary()" style="background: #FFF; color: #991B1B; border: 1px solid #FCA5A5; padding: 5px 10px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;">
@@ -1607,8 +1607,15 @@
   function getAccessKey() {
     try { return localStorage.getItem(ACCESS_KEY_STORAGE) || ''; } catch (_) { return ''; }
   }
+  // 貼り付けられた文字から合言葉だけを取り出す（設定用リンクごと貼っても、前後に空白や改行が付いても通す）
+  function normalizeAccessKey(value) {
+    let v = String(value || '').trim();
+    const m = /key=([0-9A-Za-z]+)/.exec(v);
+    if (m) v = m[1];
+    return v.replace(/[\s"'「」]/g, '');
+  }
   function saveAccessKey(value) {
-    try { localStorage.setItem(ACCESS_KEY_STORAGE, String(value || '').trim()); } catch (_) {}
+    try { localStorage.setItem(ACCESS_KEY_STORAGE, normalizeAccessKey(value)); } catch (_) {}
   }
   // 設定用リンク（…/#key=合言葉）で開いた時は、合言葉を保存してアドレスから消す
   (function adoptAccessKeyFromLink() {
@@ -1631,9 +1638,16 @@
     refreshSummary();
   }
 
-  function showConnectionErrorBanner(detailMsg) {
+  // kind='auth' は「通信はできているが合言葉が要る」状態。通信の故障と見分けがつく見出しにする
+  let connectionErrorKind = '';
+  function showConnectionErrorBanner(detailMsg, kind) {
     const banner = document.getElementById('connection-error-banner');
     const msgEl = document.getElementById('connection-error-msg');
+    const titleEl = document.getElementById('connection-error-title');
+    const btnEl = document.getElementById('connection-error-settings-btn');
+    connectionErrorKind = kind || '';
+    if (titleEl) titleEl.textContent = (kind === 'auth') ? '🔑 合言葉を入れてください' : '⚠️ サーバー（スプレッドシート）と通信できません';
+    if (btnEl) btnEl.textContent = (kind === 'auth') ? '🔑 合言葉を入れる' : '⚙️ 接続URLを確認・設定';
     if (banner) banner.style.display = 'block';
     if (msgEl && detailMsg) msgEl.textContent = detailMsg;
   }
@@ -1651,6 +1665,8 @@
     if (keyInput) keyInput.value = getAccessKey();
     const modal = document.getElementById('settings-modal');
     if (modal) modal.style.display = 'flex';
+    // 合言葉待ちの時は、合言葉の欄から始める
+    if (keyInput && connectionErrorKind === 'auth') { try { keyInput.focus(); } catch (_) {} }
   }
 
   function closeSettingsModal(e) {
@@ -1744,8 +1760,10 @@
             return callGasApi(action, payload, true);
           }
         }
-        const authMsg = '合言葉が必要です。⚙️設定に合言葉を入れてください。';
-        showConnectionErrorBanner(authMsg);
+        const authMsg = getAccessKey()
+          ? 'サーバーとはつながっています。保存してある合言葉が合っていません。下のボタンから貼り直してください。'
+          : 'サーバーとはつながっています。このスマホにまだ合言葉が入っていません。下のボタンから貼り付けてください（最初の1回だけ）。';
+        showConnectionErrorBanner(authMsg, 'auth');
         return { ok: false, code: 'AUTH', error: authMsg };
       }
 
