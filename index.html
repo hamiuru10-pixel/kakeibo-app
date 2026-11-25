@@ -993,6 +993,23 @@
     .bd-note { font-size: 0.72rem; color: var(--ink-secondary); line-height: 1.45; margin: 10px 0 12px; }
     .bd-empty { text-align: center; color: var(--muted); font-size: 0.82rem; padding: 18px 0; }
 
+    /* Amazon の注文の取り込み */
+    .amz-order {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+      padding: 10px 12px; margin-bottom: 8px;
+    }
+    .amz-order.is-imported { opacity: 0.6; }
+    .amz-order-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .amz-order-date { font-size: 0.74rem; color: var(--ink-secondary); }
+    .amz-order-total { font-size: 0.95rem; font-weight: 800; color: var(--ink); white-space: nowrap; }
+    .amz-order-items { font-size: 0.82rem; color: var(--ink); margin: 4px 0 6px; line-height: 1.4; overflow-wrap: anywhere; }
+    .amz-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .amz-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: var(--surface-subtle); border: 1px solid var(--line); color: var(--ink-secondary); }
+    .amz-badge.warn { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-ink); }
+    .amz-badge.done { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+    .amz-order button { width: 100%; padding: 8px; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #FFF; cursor: pointer; }
+    .amz-order.is-imported button { background: var(--surface); color: var(--accent-ink); }
+
   </style>
 </head>
 <body>
@@ -1118,6 +1135,12 @@
       <span class="subtext">自販機・駐車場等</span>
     </button>
   </section>
+
+  <!-- Amazon の注文メールから登録 -->
+  <button type="button" class="breakdown-open-btn" onclick="openAmazonModal()">
+    📦 Amazonの注文から登録
+    <small>注文確認メール（夫のGmail）から品名と金額を読み取り、下見してから登録します</small>
+  </button>
 
   <!-- ローディング表示 -->
   <section class="loading-overlay" id="loading-overlay">
@@ -1437,6 +1460,27 @@
     </div>
 
     <button type="button" class="btn-block btn-secondary" onclick="closeBreakdownModal()">
+      閉じる
+    </button>
+  </div>
+</div>
+
+<!-- ⑥ Amazon の注文から登録 -->
+<div class="modal-backdrop" id="amazon-modal" onclick="closeAmazonModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="preview-header">
+      <div class="preview-title">
+        <span>📦</span> Amazonの注文から登録
+      </div>
+      <button type="button" class="delete-item-btn" onclick="closeAmazonModal()">✕</button>
+    </div>
+    <div class="bd-note" style="margin-top: 0;">
+      直近60日の注文確認メールから読み取りました。登録したい注文の「下見して登録」を押すと、レシートと同じ下見の画面になります。品目ごとに負担を変えたり、要らない品目を消したりしてから登録できます。
+    </div>
+    <div class="unsettled-list-container" id="amazon-order-list" style="max-height: 60vh;">
+      <div class="bd-empty">読み込み中...</div>
+    </div>
+    <button type="button" class="btn-block btn-secondary" onclick="closeAmazonModal()">
       閉じる
     </button>
   </div>
@@ -3077,6 +3121,104 @@
 
   function formatYen(num) {
     return '¥' + Number(num || 0).toLocaleString();
+  }
+
+
+  // =========================================================================
+  // ⑥ Amazon の注文メールから登録（下見の画面はレシートと共通）
+  // =========================================================================
+  let amazonOrders = [];
+
+  function openAmazonModal() {
+    document.getElementById('amazon-modal').style.display = 'flex';
+    loadAmazonOrders();
+  }
+
+  function closeAmazonModal(e) {
+    if (e && e.target !== document.getElementById('amazon-modal')) return;
+    document.getElementById('amazon-modal').style.display = 'none';
+  }
+
+  async function loadAmazonOrders() {
+    const listEl = document.getElementById('amazon-order-list');
+    listEl.innerHTML = '<div class="bd-empty">注文確認メールを読んでいます...</div>';
+    const res = await callGasApi('amazonOrders', { days: 60 });
+    if (!res || !res.ok) {
+      listEl.innerHTML = `<div class="bd-empty">${escapeHtml((res && res.error) || '読み込めませんでした')}</div>`;
+      return;
+    }
+    amazonOrders = res.orders || [];
+    renderAmazonOrders();
+  }
+
+  function renderAmazonOrders() {
+    const listEl = document.getElementById('amazon-order-list');
+    if (amazonOrders.length === 0) {
+      listEl.innerHTML = '<div class="bd-empty">直近60日の注文確認メールはありませんでした</div>';
+      return;
+    }
+    listEl.innerHTML = amazonOrders.map((o, idx) => {
+      const names = o.items.map(it => it.name.slice(0, 28) + (it.name.length > 28 ? '…' : '') + (it.quantity > 1 ? ` ×${it.quantity}` : '')).join(' ／ ');
+      const badges = [];
+      if (o.imported) badges.push('<span class="amz-badge done">✅ 登録済み</span>');
+      if (o.furusato) badges.push('<span class="amz-badge warn">🎁 ふるさと納税の返礼品らしい</span>');
+      if (o.total !== o.itemsSum) badges.push(`<span class="amz-badge warn">💳 支払額 ${formatYen(o.total)}（ポイント・割引・送料など）</span>`);
+      return `<div class="amz-order${o.imported ? ' is-imported' : ''}">
+        <div class="amz-order-head"><span class="amz-order-date">${escapeHtml(o.date)}　注文 ${escapeHtml(o.orderNumber)}</span><span class="amz-order-total">${formatYen(o.itemsSum)}</span></div>
+        <div class="amz-order-items">${escapeHtml(names)}</div>
+        ${badges.length ? `<div class="amz-badges">${badges.join('')}</div>` : ''}
+        <button type="button" onclick="startAmazonImport(${idx})">${o.imported ? 'もう一度下見する' : '下見して登録'}</button>
+      </div>`;
+    }).join('');
+  }
+
+  // 注文1件を、レシート下見と同じ形（currentAnalysis）に組み立てる
+  function buildAmazonAnalysis(o, categories) {
+    const items = o.items.map((it, i) => {
+      const c = (categories && categories[i]) || {};
+      const name = it.name.length > 50 ? it.name.slice(0, 50) + '…' : it.name;
+      return {
+        itemName: it.quantity > 1 ? `${name} ×${it.quantity}` : name,
+        amount: it.amount,
+        discount: 0,
+        majorCategory: c.majorCategory || 'その他',
+        minorCategory: c.minorCategory || '',
+        memo: `Amazon ${o.orderNumber}`
+      };
+    });
+    const diff = (Number(o.total) || 0) - (Number(o.itemsSum) || 0);
+    if (diff !== 0) {
+      items.push({
+        itemName: 'ポイント・割引・送料などの差額（端数調整）',
+        amount: diff,
+        discount: 0,
+        majorCategory: 'その他',
+        minorCategory: '端数調整',
+        memo: `Amazon ${o.orderNumber}`
+      });
+    }
+    return { date: o.date, storeName: 'Amazon.co.jp', totalAmount: o.total, items: items };
+  }
+
+  async function startAmazonImport(idx) {
+    const o = amazonOrders[idx];
+    if (!o) return;
+    if (o.imported && !confirm('この注文はもう登録されています。\n同じ内容をもう一度登録すると二重になります（同じ日・同じ品名・同じ金額の行は自動で飛ばします）。下見を開きますか？')) return;
+    if (o.furusato && !confirm('ふるさと納税の返礼品らしい注文です。\n寄付の支払いを家計簿に入れますか？（入れない時は「キャンセル」）')) return;
+    showToast('品目の費目を推定しています...');
+    const cls = await callGasApi('classifyItems', { names: o.items.map(it => it.name) });
+    currentAnalysis = buildAmazonAnalysis(o, cls && cls.ok ? cls.categories : null);
+    closeAmazonModal();
+    // 支払ったのは Amazon のアカウントを持つ夫。負担は既定どおり「支払った人が100%」から始める
+    setPayer('夫');
+    selectPaymentMethod('Amazon');
+    const warn = document.getElementById('omission-warning');
+    if (warn) warn.style.display = 'none';
+    const badge = document.getElementById('match-badge');
+    if (badge) { badge.textContent = '📦 Amazonの注文'; badge.className = 'match-badge'; }
+    document.getElementById('action-panel').style.display = 'none';
+    renderPreview();
+    try { document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
   }
 
   // =========================================================================
